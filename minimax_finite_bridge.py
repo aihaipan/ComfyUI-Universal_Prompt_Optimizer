@@ -245,9 +245,9 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
                 ),
                 io.Combo.Input(
                     "audio_mode",
-                    options=["reference", "locked"],
-                    default="reference",
-                    tooltip="reference = 参考音色；locked = 原声直入输出音轨（只取第 1 条）",
+                    options=["参考音色", "强制使用音频1"],
+                    default="参考音色",
+                    tooltip="参考音色 = 参考上传音频的音色重新生成对白；强制使用音频1 = 原声直入（仅取第 1 条）",
                 ),
                 io.Custom("GH_SEGMENTS_STR").Input(
                     "segments_json",

@@ -188,7 +188,7 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
         # 索引约定：图片 0-8、音频 0-2（跟导演台 MMX_DIR_GROUP 的约定一致）。
         media_bundle = _build_media_bundle(media)
 
-        return io.NodeOutput(image, media_bundle, prompt_text, conditioning, segments_json, prompt_text)
+        return io.NodeOutput(image, media_bundle, prompt_text, conditioning, prompt_text, segments_json)
 
 
 class UniversalPromptOptimizerExtension(ComfyExtension):
