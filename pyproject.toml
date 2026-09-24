@@ -1,10 +1,10 @@
 [project]
 name = "universal-prompt-optimizer"
 description = "Universal prompt optimizer for any ComfyUI model, with R2V bridges for both MiniMax H3 Director and TimelineDirector."
-version = "0.2.0"
-license = { file = "LICENSE" }
+version = "0.2.1"
+license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["aiohttp"]
 
 [project.urls]
 Repository = "https://github.com/aihaipan/ComfyUI-Universal_Prompt_Optimizer"
