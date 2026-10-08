@@ -31,3 +31,8 @@ Thumbs.db
 
 # ComfyUI Registry publish artifacts
 node.zip
+
+# Repository materials not needed in the runtime package
+# (users can browse these directly on GitHub)
+workflows/
+docs/
