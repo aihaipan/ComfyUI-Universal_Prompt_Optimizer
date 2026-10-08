@@ -1,0 +1,7 @@
+# Development-only files
+.github/
+.vscode/
+*.bak
+*.bck
+* - 副本.*
+node.zip

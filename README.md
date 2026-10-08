@@ -29,9 +29,9 @@ A universal prompt optimizer node for ComfyUI. Turn rough natural-language ideas
 
 Ready-to-load workflows in the `workflows/` directory:
 
-- [`workflows/01-director-full.json`](workflows/01-director-full.json) — Full MiniMax H3 pipeline with the AIMixer Director integration
-- [`workflows/02-image-demo.json`](workflows/02-image-demo.json) — Image prompt optimization demo
-- [`workflows/03-unlimited-two-stage.json`](workflows/03-unlimited-two-stage.json) — Unlimited-length fast generation with two-stage sampling via TimelineDirector
+- [`workflows/01-director-full-r2v导演台外接.json`](workflows/01-director-full-r2v导演台外接.json) — Full MiniMax H3 pipeline with the AIMixer Director integration
+- [`workflows/02-image-demo-生图.json`](workflows/02-image-demo-生图.json) — Image prompt optimization demo
+- [`workflows/03-unlimited-two-stage-小黄瓜多段.json`](workflows/03-unlimited-two-stage-小黄瓜多段.json) — Unlimited-length fast generation with two-stage sampling via TimelineDirector
 
 ### Installation
 
@@ -138,9 +138,9 @@ GPL-3.0-or-later
 
 `workflows/` 目录下提供了开箱即用的示例：
 
-- [`workflows/01-director-full.json`](workflows/01-director-full.json) — 完整 MiniMax H3 管线，含 AIMixer 导演台整合
-- [`workflows/02-image-demo.json`](workflows/02-image-demo.json) — 生图提示词优化演示
-- [`workflows/03-unlimited-two-stage.json`](workflows/03-unlimited-two-stage.json) — 通过 TimelineDirector 实现的无限时长快速生成 + 二采
+- [`workflows/01-director-full-r2v导演台外接.json`](workflows/01-director-full-r2v导演台外接.json) — 完整 MiniMax H3 管线，含 AIMixer 导演台整合
+- [`workflows/02-image-demo-生图.json`](workflows/02-image-demo-生图.json) — 生图提示词优化演示
+- [`workflows/03-unlimited-two-stage-小黄瓜多段.json`](workflows/03-unlimited-two-stage-小黄瓜多段.json) — 通过 TimelineDirector 实现的无限时长快速生成 + 二采
 
 ### 安装
 ```bash

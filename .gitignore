@@ -28,3 +28,6 @@ Thumbs.db
 *.bck
 * - 副本.*
 *_backup*
+
+# ComfyUI Registry publish artifacts
+node.zip

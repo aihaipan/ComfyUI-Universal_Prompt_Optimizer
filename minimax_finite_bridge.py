@@ -215,9 +215,9 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
                     tooltip="万能节点的 media_bundle 输出；未连接则视为空素材",
                 ),
                 io.Custom("GH_PROMPT_STR").Input(
-                    "prompt",
+                    "prompt_finite",
                     optional=True,
-                    tooltip="优化后的提示词（来自万能节点的 prompt 输出）",
+                    tooltip="优化后的提示词（来自万能节点的 prompt_finite 输出）",
                 ),
                 io.Float.Input(
                     "duration_sec",
@@ -292,7 +292,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
     @classmethod
     def execute(
         cls,
-        prompt="",
+        prompt_finite="",
         media_bundle=None,
         duration_sec=5.0,
         width=864,
@@ -335,7 +335,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
         image_paths = dict(bundle.get("image_paths") or {})
         audio_paths = dict(bundle.get("audio_paths") or {})
 
-        prompt_text = str(prompt or "").strip()
+        prompt_text = str(prompt_finite or "").strip()
         width = int(width)
         height = int(height)
 
@@ -520,7 +520,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
             "second_pass_model": sp_model,
             "second_pass_high_steps": sp_steps,
         }
-        summary = _build_summary_single(
+        summary = _build_summary_multi(
             all_images, all_audios, seg_plans, width, height, audio_mode,
             overlaps=seg_overlaps,
         )

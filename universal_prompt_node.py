@@ -150,8 +150,8 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
                 io.Image.Output("image"),
                 # 打包所有上传素材（9 图 + 3 音频）供 MiniMax H3 R2V 桥接器使用。
                 io.Custom("GH_MEDIA_BUNDLE").Output("media_bundle"),
-                # prompt（String 类型）：给 R2V 桥接器使用
-                io.String.Output("prompt"),
+                # prompt_r2v（String 类型）：给 R2V 桥接器使用
+                io.String.Output("prompt_r2v"),
                 io.Conditioning.Output("conditioning"),
                 # prompt_finite（String 包装类型）：给 Finite Segment 桥接器使用（避免跟 R2V 类型冲突）
                 io.Custom("GH_PROMPT_STR").Output("prompt_finite"),                
