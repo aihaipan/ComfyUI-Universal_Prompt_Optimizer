@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import base64
 from difflib import SequenceMatcher
+from functools import lru_cache
 import gc
 import json
 import os
@@ -906,6 +907,50 @@ def _endpoint(config: dict) -> str:
     return f"{base}/chat/completions"
 
 
+OFFICIAL_H3_SKILL_ROOT = Path(__file__).resolve().parent / "official_skills" / "h3-prompt-writing"
+OFFICIAL_SKILL_SOURCE_SHA = "d21241f0a4b3acbb34c97dae47fa417b7065e438"
+OFFICIAL_SKILL_TREE_SHA256 = "b6c4af89b79c044efc8c05865d52cee2cd726ec69c70a6770a707ecf1b18ba89"
+
+
+@lru_cache(maxsize=4)
+def _official_h3_source_instruction(task: str) -> str:
+    """Load the official MiniMax H3 prompt-writing Skill verbatim."""
+    task_upper = str(task or "T2VA").upper()
+    is_ref = task_upper in {"REF2VA", "HYBRID"}
+    guide_name = "ref-en.txt" if is_ref else "base-en.txt"
+    skill_path = OFFICIAL_H3_SKILL_ROOT / "SKILL.md"
+    guide_path = OFFICIAL_H3_SKILL_ROOT / "references" / guide_name
+    try:
+        skill_text = skill_path.read_text(encoding="utf-8").strip()
+        guide_text = guide_path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError) as exc:
+        print(f"[OFFICIAL_SKILL] Bundled official H3 Skill is unavailable: {exc}", flush=True)
+        print("[OFFICIAL_SKILL] Falling back to hardcoded rules.", flush=True)
+        return ""
+    if not skill_text or not guide_text:
+        print("[OFFICIAL_SKILL] Bundled official H3 Skill is empty; falling back to hardcoded rules.", flush=True)
+        return ""
+    return (
+        f"VERBATIM_OFFICIAL_H3_SKILL_SOURCE commit={OFFICIAL_SKILL_SOURCE_SHA} "
+        f"tree_sha256={OFFICIAL_SKILL_TREE_SHA256}.\n"
+        "OFFICIAL_SKILL_LANGUAGE_PRECEDENCE (mandatory, overrides any all-English clause "
+        "inside the Skill text below): the Skill's structural, field-name, timing, label, "
+        "speaker, sound, reference-role and safety rules remain mandatory. Its requirement "
+        "to write descriptive prose in English is OVERRIDDEN by the user-selected output "
+        "language. When the selected output language is Chinese, every descriptive sentence "
+        "(integrated_multimodal_description, detailed_description, overall_soundscape, "
+        "non_diegetic_music, subject_definitions, summary, and retention_analysis explanations) "
+        "MUST be written in Simplified Chinese. Keep only the official field names, [Shot N], "
+        "At MM:SS.mmm, <Picture N>/<Video N>/<Subject N>, <d>[Lang]</d> dialogue tags, "
+        "retention markers (fully_preserved, partially_preserved, attribute_transfer, "
+        "weak_reference, fully_copy, partially_copy, reference), and fixed alignment sentences "
+        "in English. Never translate exact dialogue, lyrics, brand copy or visible scene text. "
+        "Never mix English and Chinese descriptive sentences inside one response.\n\n"
+        f"--- SKILL.md ---\n{skill_text}\n\n"
+        f"--- references/{guide_name} ---\n{guide_text}"
+    )
+
+
 def _system_prompt_minimax_h3(
     task: str,
     duration: float,
@@ -1203,6 +1248,7 @@ def _system_prompt_minimax_h3(
         "with its exact parenthesized form."
     )
     return (
+        _official_h3_source_instruction(task) + "\n\n" +
         "You are a professional prompt writer for the open-source MiniMax H3 audiovisual model. Return only the "
         "final production-ready prompt without explanations, markdown fences, filenames, or invented media. "
         "Preserve the user's intent and every supplied dialogue, lyric, and visible-text word verbatim; do not "
@@ -1246,6 +1292,21 @@ def _system_prompt_minimax_h3(
         "that every required section is present in the correct order, every used label exists, no filename appears, "
         "no audio content was fabricated, all timing fits the target duration, and the audio relationship matches "
         f"the supplied mode. {language_rule}"
+        + (
+            " ABSOLUTE FINAL RULE — OUTPUT LANGUAGE (highest priority, executes last): "
+            "Write the ENTIRE response in Simplified Chinese. Every descriptive sentence in "
+            "integrated_multimodal_description, detailed_description, overall_soundscape, "
+            "non_diegetic_music, subject_definitions, summary, and retention_analysis explanations "
+            "MUST be Chinese. Keep ONLY the official field names, [Shot N], At MM:SS.mmm, "
+            "<Picture N>/<Video N>/<Subject N>, <d>[Lang]</d> tags, retention markers "
+            "(fully_preserved, partially_preserved, attribute_transfer, weak_reference, fully_copy, "
+            "partially_copy, reference), and fixed alignment sentences in English. Preserve exact "
+            "dialogue, lyrics, brand copy and visible scene text in their original language. "
+            "If any English descriptive sentence appears in the result, rewrite it into Chinese "
+            "before returning. Returning English prose under Chinese mode is a task failure."
+            if str(output_language) == "中文" else
+            " ABSOLUTE FINAL RULE — OUTPUT LANGUAGE: Write the entire response in English."
+        )
     )
 
 def _system_prompt_image(
@@ -2469,10 +2530,69 @@ def _cleanup_generic_prompt(text: str) -> str:
     return value
 
 
+_CJK_RE = re.compile(r"[\u3400-\u9fff]")
+
+
+def _is_mostly_wrong_language(text: str, output_language: str) -> bool:
+    body = str(text or "")
+    if not body.strip():
+        return False
+    cjk = len(_CJK_RE.findall(body))
+    latin_words = len(re.findall(r"[A-Za-z]{3,}", body))
+    if str(output_language) == "中文":
+        return cjk < max(20, latin_words // 3)
+    if str(output_language) == "English":
+        return latin_words < 30 and cjk > 50
+    return False
+
+
+async def _repair_output_language(text: str, config: dict, payload: dict) -> str:
+    output_language = str(config.get("output_language") or "English")
+    if output_language == "中文":
+        system_prompt = (
+            "You are a language editor. Rewrite the supplied MiniMax H3 prompt so that ALL "
+            "descriptive prose is in Simplified Chinese. Keep ONLY the official field names "
+            "(integrated_multimodal_description, overall_soundscape, non_diegetic_music, "
+            "subject_definitions, summary, retention_analysis, detailed_description), [Shot N], "
+            "At MM:SS.mmm, <Picture N>/<Video N>/<Subject N>, <d>[Lang]</d> tags, retention "
+            "markers (fully_preserved, partially_preserved, attribute_transfer, weak_reference, "
+            "fully_copy, partially_copy, reference), and fixed alignment sentences in English. "
+            "Preserve exact dialogue, lyrics, brand copy and visible scene text in their "
+            "original language. Return only the rewritten prompt with no preface, no explanation, "
+            "no markdown fences."
+        )
+    else:
+        system_prompt = (
+            "You are a language editor. Rewrite the supplied prompt so that ALL descriptive "
+            "prose is in English. Keep field names, labels and markers unchanged. Preserve "
+            "exact dialogue, lyrics and visible text unchanged. Return only the rewritten "
+            "prompt with no preface, no explanation, no markdown fences."
+        )
+    repair_payload = dict(payload)
+    repair_payload["prompt"] = "Rewrite the prompt below.\n\n--- ORIGINAL PROMPT ---\n" + text
+    repair_payload["media"] = []
+    repair_config = dict(config)
+    repair_config["template"] = "custom"
+    repair_config["custom_system_prompt"] = system_prompt
+    repair_config["max_tokens"] = min(int(config.get("max_tokens") or 4096), 4096)
+    return await _request_async(repair_config, repair_payload)
+
+
 async def _run_prompt_optimization(config: dict, payload: dict) -> str:
     result = await _request_async(config, payload)
     if not result:
         raise RuntimeError("API 返回了空提示词")
+    if str(config.get("template") or "minimax_h3").lower() == "minimax_h3" and _is_mostly_wrong_language(
+        result, str(config.get("output_language") or "English")
+    ):
+        try:
+            repaired = await _repair_output_language(result, config, payload)
+            if repaired and not _is_mostly_wrong_language(
+                repaired, str(config.get("output_language") or "English")
+            ):
+                result = repaired
+        except Exception:
+            pass
     template = str(config.get("template") or "minimax_h3").lower()
     formatted = _strip_filenames(result)
     if template == "minimax_h3":
