@@ -755,6 +755,13 @@ def _local_generate_impl(config: dict, payload: dict) -> str:
             kind = str(item.get("kind") or "")
             if kind == "audio":
                 content.append({"type": "text", "text": f"{label} is an uploaded audio reference; audio data is not transmitted."})
+            elif kind == "video":
+                # 【方案A】视频不传帧
+                content.append({"type": "text", "text": (
+                    f"{label} is an uploaded VIDEO reference for MOTION transfer. "
+                    f"Its frames are NOT provided. Refer to it ONLY by label. "
+                    f"Write exactly '<video N> 的动作轨迹'."
+                )})
             else:
                 for data_url in item.get("images") or []:
                     content.append({"type": "image", "image": _data_url_image(data_url)})
@@ -874,12 +881,23 @@ def _gguf_generate(config: dict, payload: dict) -> str:
         content = [{"type": "text", "text": "User prompt:\n" + user_prompt}]
         for item in media:
             label = str(item.get("label") or "")
-            if str(item.get("kind") or "") == "audio":
+            kind = str(item.get("kind") or "")
+            if kind == "audio":
                 content.append({"type": "text", "text": f"{label} is an uploaded audio reference; audio data is not transmitted."})
                 continue
-            for index, data_url in enumerate(item.get("images") or []):
-                content.append({"type": "text", "text": f"{label} visual {index + 1}."})
-                content.append({"type": "image_url", "image_url": {"url": data_url}})
+            frames = item.get("images") or []
+            if kind == "video":
+                # 【方案A】视频不传帧
+                content.append({"type": "text", "text": (
+                    f"{label} is an uploaded VIDEO reference used for MOTION / ACTION transfer. "
+                    f"Its frames are NOT provided. Refer to it ONLY by label. "
+                    f"Write exactly '<video N> motion trajectory' or '<video N> 的动作轨迹'. "
+                    f"Do NOT describe its content, scene, subject, or background."
+                )})
+            else:
+                for index, data_url in enumerate(frames):
+                    content.append({"type": "text", "text": f"{label} visual {index + 1}."})
+                    content.append({"type": "image_url", "image_url": {"url": data_url}})
         if cancel_event and cancel_event.is_set():
             raise RuntimeError("提示词优化已取消")
         with _GGUF_LOCK:
@@ -947,7 +965,14 @@ def _official_h3_source_instruction(task: str) -> str:
         "in English. Never translate exact dialogue, lyrics, brand copy or visible scene text. "
         "Never mix English and Chinese descriptive sentences inside one response.\n\n"
         f"--- SKILL.md ---\n{skill_text}\n\n"
-        f"--- references/{guide_name} ---\n{guide_text}"
+        f"--- references/{guide_name} ---\n{guide_text}\n\n"
+        "VIDEO_REFERENCE_RULE (mandatory, overrides any conflicting rule above): "
+        "<video N> is an uploaded video, provided as 3 sampled frames (start/mid/end). "
+        "Use them ONLY to understand motion trajectory, gesture arc, and timing. "
+        "NEVER treat these frames as keyframes, pictures, scenes, or identity references. "
+        "NEVER define <Subject N> or <Picture N> from a video frame unless the user explicitly asks. "
+        "When the user references '<video N> motion', describe the MOTION ARC and how it transfers "
+        "to the target subject; do NOT describe the source video's subject appearance or background."
     )
 
 
@@ -1239,6 +1264,20 @@ def _system_prompt_minimax_h3(
         "inside the main shot timeline and nowhere else. Do not wrap paraphrased soundscape descriptions, ambient "
         "sounds, or dialogue that the user did not explicitly supply in <d> tags."
     )
+    video_rule = (
+        "VIDEO REFERENCE RULE (MANDATORY): <video N> labels refer to uploaded videos used for "
+        "MOTION / ACTION transfer. Their frames are NOT provided to you. Write ONLY the exact "
+        "phrase '<video N> motion trajectory' (or '<video N> 的动作轨迹' in Chinese). "
+        "NEVER describe the video's content, scene, subject, background, or appearance. "
+        "NEVER define <Subject N> or <Picture N> for a video. "
+        "TRUST THE DOWNSTREAM MODEL: motion is extracted by the generator, not by you. "
+        "MOTION / ACTION references. For each <video N>, 3 sampled frames (start/mid/end) are provided — they "
+        "are NOT separate keyframes and NOT independent pictures. Use them ONLY to extract the motion trajectory, "
+        "gesture arc, body movement, timing, and pacing. NEVER treat <video N> frames as identity references, "
+        "scene references, or keyframe anchors. NEVER define a <Subject N> or <Picture N> from a <video N> frame "
+        "unless the user explicitly asks. When the user references '<video N> motion', describe the MOTION ARC "
+        "and how it transfers to the target subject — do not describe the source subject's appearance or background."
+    )
     subject_shorthand_rule = (
         "Subject shorthand formatting is mandatory and globally consistent. If a stable short subject ID is used, "
         "it must always be written with parentheses as (S1), (S2), ... through (S20). Never output a bare S1, S2, "
@@ -1286,7 +1325,7 @@ def _system_prompt_minimax_h3(
         "information. Do not create labels outside the supplied label list, renumber labels, "
         "or replace labels with filenames. "
         f"Task={task}; duration={duration:.2f}s; available labels={', '.join(labels) or 'none'}. "
-        f"{label_rule} {keyframe_rule} {audio_rule} {structure}{pacing_rule}{singing_rule}{transfer_rule} {dialogue_rule} "
+        f"{label_rule} {video_rule} {keyframe_rule} {audio_rule} {structure}{pacing_rule}{singing_rule}{transfer_rule} {dialogue_rule} "
         f"{subject_shorthand_rule} "
         "Audio items are label-only references; never claim you listened to them. Before returning, silently check "
         "that every required section is present in the correct order, every used label exists, no filename appears, "
@@ -1872,6 +1911,15 @@ def _user_parts(prompt: str, media: list[dict], read_media: bool) -> list[dict]:
         kind = str(item.get("kind") or "")
         if kind == "audio":
             parts.append({"type": "text", "text": f"{label} is an uploaded audio reference (content not transmitted)."})
+        elif read_media and kind == "video":
+            # 【方案A】视频不传帧给 LLM，只传标签，避免污染 Picture 编号
+            parts.append({"type": "text", "text": (
+                f"{label} is an uploaded VIDEO reference used for MOTION / ACTION transfer. "
+                f"Its frames are NOT provided to you. Refer to it ONLY by its label. "
+                f"Do NOT describe its content, scene, subject, or background. "
+                f"When the user mentions it, write the exact phrase '<video N> motion trajectory' "
+                f"(or in Chinese: '<video N> 的动作轨迹') — never expand it into visual details."
+            )})
         elif read_media:
             for index, data_url in enumerate(item.get("images") or []):
                 parts.append({"type": "text", "text": f"{label} visual {index + 1}."})

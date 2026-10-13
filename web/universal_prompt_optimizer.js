@@ -2753,8 +2753,9 @@ function createPanel(node) {
                 try { item.images = [await lowImageData(fileUrl(entry.name))]; }
                 catch (e) { console.warn("[UPO] image read failed", e); }
             } else if (readMedia && spec.kind === "video" && entry.name) {
-                try { item.images = await lowVideoFrames(fileUrl(entry.name)); }
-                catch (e) { console.warn("[UPO] video read failed", e); }
+                // 【方案A】视频不抽帧给 LLM，只传"这是视频参考"的标记
+                // 避免 LLM 把视频帧当成额外 Picture，污染 Picture 编号
+                item.is_video_reference = true;
             }
             payload.push(item);
         }
@@ -2822,8 +2823,9 @@ function createPanel(node) {
                 try { item.images = [await lowImageData(fileUrl(entry.name))]; }
                 catch (e) { console.warn("[UPO] image read failed", e); }
             } else if (readMedia && spec.kind === "video" && entry.name) {
-                try { item.images = await lowVideoFrames(fileUrl(entry.name)); }
-                catch (e) { console.warn("[UPO] video read failed", e); }
+                // 【方案A】视频不抽帧给 LLM，只传"这是视频参考"的标记
+                // 避免 LLM 把视频帧当成额外 Picture，污染 Picture 编号
+                item.is_video_reference = true;
             }
             payload.push(item);
         }
