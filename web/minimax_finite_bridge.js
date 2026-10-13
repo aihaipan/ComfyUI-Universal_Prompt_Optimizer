@@ -712,6 +712,27 @@ function createPanel(node) {
     });
 
     // ---- 首次渲染 + 轮询 ----
+    // 【时长同步】从源节点读段时长，写入 duration_sec widget
+    function syncDurationFromSource() {
+        const data = readSourceData();
+        if (!data || data.viewMode !== "video") return;
+        const segs = data.segments || [];
+        if (!segs.length) return;
+        let targetDuration;
+        if (segs.length === 1) {
+            targetDuration = Number(segs[0].duration) || 5.0;
+        } else {
+            targetDuration = segs.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+        }
+        const w = node.widgets?.find(w => w.name === "duration_sec");
+        if (!w) return;
+        if (Math.abs(Number(w.value) - targetDuration) < 0.01) return;
+        w.value = targetDuration;
+        try { w.callback?.call(w, targetDuration); } catch {}
+        node.setDirtyCanvas?.(true, true);
+        console.log("[GH-Bridge] duration synced:", targetDuration);
+    }
+
     function renderAll() {
         // 【L2-d·A5 修复3】拖动中走"快渲染"（不重建 DOM，pointer capture 不丢）
         if (dragState) {
@@ -722,9 +743,13 @@ function createPanel(node) {
         }
     }
     renderAll();
-    const pollTimer = setInterval(renderAll, 1000);
-    node.__ghBridgePollTimer = pollTimer;
     node.__ghBridgeRenderAll = renderAll;
+    node.__ghBridgeSyncDuration = syncDurationFromSource;
+    // 【时长同步】通过 node 间接调用，永远读最新版
+    node.__ghBridgePollTimer = setInterval(() => {
+        try { node.__ghBridgeRenderAll?.(); } catch (e) {}
+        try { node.__ghBridgeSyncDuration?.(); } catch (e) {}
+    }, 1000);
 
     // 【L3 audio_mode 汉化】值直接改中文（后端关键词归一化兜底）
     const amWidget = node.widgets?.find(w => w.name === "audio_mode");

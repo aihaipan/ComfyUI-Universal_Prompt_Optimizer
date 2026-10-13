@@ -5,8 +5,13 @@
 from __future__ import annotations
 
 import logging
+import os
+import re
+import subprocess
+import json
 
 import nodes
+import shutil
 import torch
 import torch.nn.functional as F
 from comfy_api.latest import ComfyExtension, io
@@ -73,6 +78,60 @@ def _hidden_string(name):
     return io.String.Input(name, default="", optional=True, extra_dict={"hidden": True})
 
 
+def _probe_video_metadata(filename: str) -> dict:
+    """用 ffprobe 探测视频的 duration 和 hasAudio。失败返回空 dict。"""
+    try:
+        import folder_paths
+        full_path = folder_paths.get_annotated_filepath(filename)
+        if not full_path or not os.path.isfile(full_path):
+            # 兼容：在 input 目录找
+            input_dir = folder_paths.get_input_directory()
+            candidate = os.path.join(input_dir, filename)
+            if os.path.isfile(candidate):
+                full_path = candidate
+            else:
+                return {}
+        # 优先用 ffprobe
+        ffprobe = shutil.which("ffprobe")
+        if ffprobe:
+            cmd = [
+                ffprobe, "-v", "quiet", "-print_format", "json",
+                "-show_format", "-show_streams", full_path,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if result.returncode == 0:
+                data = json.loads(result.stdout or "{}")
+                duration = float(data.get("format", {}).get("duration") or 0.0)
+                has_audio = any(
+                    s.get("codec_type") == "audio"
+                    for s in data.get("streams", [])
+                )
+                return {"duration": duration, "has_audio": has_audio}
+        # 回退：用 ffmpeg -i 的输出解析（stderr）
+        try:
+            import imageio_ffmpeg
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            ffmpeg_exe = shutil.which("ffmpeg")
+        if not ffmpeg_exe:
+            logging.warning("neither ffprobe nor ffmpeg found; video metadata will be empty")
+            return {}
+        cmd = [ffmpeg_exe, "-hide_banner", "-i", full_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        # ffmpeg 把信息输出到 stderr，返回码非 0 是正常的
+        stderr = result.stderr or ""
+        duration = 0.0
+        m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", stderr)
+        if m:
+            duration = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+        has_audio = "Stream #" in stderr and "Audio:" in stderr
+        logging.info("Video metadata via ffmpeg: duration=%.3f has_audio=%s", duration, has_audio)
+        return {"duration": duration, "has_audio": has_audio}
+    except Exception as exc:
+        logging.warning("_probe_video_metadata failed for %s: %s", filename, exc)
+        return {}
+
+
 def _build_media_bundle(media: dict) -> dict:
     """Pack every uploaded slot into a single GH_MEDIA_BUNDLE dict.
 
@@ -84,7 +143,7 @@ def _build_media_bundle(media: dict) -> dict:
       ref_audios: {0..2} -> AUDIO dicts
     Videos are not packed yet (the universal node does not decode them).
     """
-    bundle = {"images": {}, "audios": {}, "videos": {}, "image_paths": {}, "audio_paths": {}}
+    bundle = {"images": {}, "audios": {}, "videos": {}, "image_paths": {}, "audio_paths": {}, "video_paths": {}}
 
     for i in range(9):
         slot = f"ref_image_{i + 1}"
@@ -99,6 +158,29 @@ def _build_media_bundle(media: dict) -> dict:
         if loaded is not None:
             bundle["images"][i] = loaded
             bundle["image_paths"][i] = str(value)
+
+    # 【视频参考】打包视频文件路径 + 元数据（duration / hasAudio 用 ffprobe 探测）
+    for i in range(3):
+        slot = f"ref_video_{i + 1}"
+        value = media.get(slot, "")
+        if not value or value == "(none)":
+            continue
+        try:
+            meta = _probe_video_metadata(str(value))
+        except Exception as exc:
+            logging.warning("Universal Prompt Optimizer could not probe video %s: %s", value, exc)
+            meta = {}
+        bundle["videos"][i] = {
+            "file": str(value),
+            "name": os.path.basename(str(value)),
+            "start": 0.0,
+            "trimStart": 0.0,
+            "duration": float(meta.get("duration") or 0.0),
+            "sourceDuration": float(meta.get("duration") or 0.0),
+            "hasAudio": bool(meta.get("has_audio", False)),
+            "referenceMode": "guide",
+        }
+        bundle["video_paths"][i] = str(value)
 
     for i in range(3):
         slot = f"ref_audio_{i + 1}"

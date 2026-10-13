@@ -181,9 +181,10 @@ function createPanel(node) {
         .ghupo-weight-input::-webkit-outer-spin-button,.ghupo-weight-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
         .ghupo-weight-input.high{color:#ffd76b}
         .ghupo-weight-input.low{color:#6ba6ff}
-        .ghupo-audio{grid-column:1/-1;height:34px;aspect-ratio:auto}
-        .ghupo-audio .ghupo-card-name{font-size:9px;padding-left:6px}
-        .ghupo-audio-icon{display:flex;align-items:center;justify-content:center;height:100%;color:#8ea3b4;font-size:22px}
+        /* 【体验修复】音频跟图片一样正方缩略图 */
+        .ghupo-audio{aspect-ratio:1}
+        .ghupo-audio .ghupo-card-name{font-size:7px;padding-left:3px}
+        .ghupo-audio-icon{display:flex;align-items:center;justify-content:center;height:100%;color:#0aa4d6;font-size:48px;background:linear-gradient(135deg,#14222d 0%,#1a3040 100%)}
         .ghupo-tools{display:flex;align-items:center;gap:4px;padding:2px 4px;background:#1d2731;border-radius:6px;height:22px}
         .ghupo-template{max-width:112px;height:17px;padding:0 2px;border:1px solid #2c4255;border-radius:3px;background:#14202c;color:#a9bac8;font:9px/15px Arial,sans-serif;outline:none;cursor:pointer}
         .ghupo-tool{height:17px;min-width:17px;padding:0 3px;border:0;border-radius:3px;background:#1d2731;color:#6f8291;font:11px/17px Arial,sans-serif;cursor:pointer;opacity:.72}
@@ -758,10 +759,13 @@ function createPanel(node) {
 
     // 初次创建时保证至少 WIDTH 宽；用户拖宽后不再强制。
     // 之前这里把 m[0] 恒定写成 WIDTH，导致拖宽被立刻打回 500。
+    // 【体验修复】新节点给足高度（故事板 + 素材区 + 提示词框都可见）
+    const MIN_HEIGHT = 560;
     if (!node.size || !node.size[0]) {
-        node.size = [WIDTH, node.size?.[1] || 220];
-    } else if (node.size[0] < WIDTH) {
-        node.size[0] = WIDTH;
+        node.size = [WIDTH, node.size?.[1] || MIN_HEIGHT];
+    } else {
+        if (node.size[0] < WIDTH) node.size[0] = WIDTH;
+        if (!node.size[1] || node.size[1] < MIN_HEIGHT) node.size[1] = MIN_HEIGHT;
     }
     const baseComputeSize = node.computeSize.bind(node);
     node.computeSize = function(out) {
@@ -770,7 +774,7 @@ function createPanel(node) {
 
     // ---- 状态 ----
     let media = new Map();
-    let userHeight = 220;
+    let userHeight = 1080;
     let restoringState = true;
     let viewMode = "video"; // "video" | "image" —— 双模式切换
     const stateKey = "gh_upo_state";
@@ -829,32 +833,19 @@ function createPanel(node) {
         // widget.value 是 ComfyUI 官方主序列化路径 —— 必须写。
         const sw = widget(node, "gh_state_json");
         if (sw) sw.value = value;
-        // 【L2-c】生成 segments_json：
-        // - 单段 + 用户引用了图片 → 生成 JSON（触发桥接器单段过滤）
-        // - 单段 + 用户没引用图片 → 空字符串（走原路径）
-        // - 多段 → 生成 JSON
+        // 【L2-c + 时长同步】总是生成 segments_json：
+        // - 单段 / 多段统一处理
+        // - duration 由万能节点主控（桥接器跟随时长）
+        // - images: 有 @ 引用时为数组，否则为 null（= 用全部素材）
         let segmentsPayload = "";
         if (viewMode === "video") {
-            if (segments.length === 1) {
-                const idx = segments[0].imageIndices;
-                if (Array.isArray(idx) && idx.length) {
-                    segmentsPayload = JSON.stringify({
-                        segments: [{
-                            duration: segments[0].duration,
-                            prompt: segments[0].cache?.result || segments[0].original || "",
-                            images: idx,
-                        }],
-                    });
-                }
-            } else {
-                segmentsPayload = JSON.stringify({
-                    segments: segments.map(s => ({
-                        duration: s.duration,
-                        prompt: s.cache?.result || s.original || "",
-                        images: s.imageIndices,
-                    })),
-                });
-            }
+            segmentsPayload = JSON.stringify({
+                segments: segments.map(s => ({
+                    duration: s.duration,
+                    prompt: s.cache?.result || s.original || "",
+                    images: s.imageIndices,
+                })),
+            });
         }
         const segWidget = widget(node, "segments_json");
         if (segWidget && segWidget.value !== segmentsPayload) segWidget.value = segmentsPayload;

@@ -225,7 +225,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
                     min=0.2,
                     max=150.0,
                     step=0.1,
-                    tooltip="单段模式的目标时长（秒）；多段模式下由 segments_json 覆盖",
+                    tooltip="由万能节点主控；想手动设置请断开 segments_json 连线。",
                 ),
                 io.Int.Input(
                     "width",
@@ -334,6 +334,24 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
         bundle = media_bundle if isinstance(media_bundle, dict) else {}
         image_paths = dict(bundle.get("image_paths") or {})
         audio_paths = dict(bundle.get("audio_paths") or {})
+        # 【视频参考】从 bundle 读 videos（dict: {index: {...meta...}}）
+        videos_dict = dict(bundle.get("videos") or {})
+        video_clips = []
+        for idx in sorted(videos_dict.keys()):
+            v = videos_dict[idx]
+            if not isinstance(v, dict) or not v.get("file"):
+                continue
+            video_clips.append({
+                "id": f"vid-{idx}",
+                "file": str(v.get("file")),
+                "name": str(v.get("name") or ""),
+                "start": float(v.get("start") or 0.0),
+                "trimStart": float(v.get("trimStart") or 0.0),
+                "duration": float(v.get("duration") or 0.0),
+                "sourceDuration": float(v.get("sourceDuration") or 0.0),
+                "hasAudio": bool(v.get("hasAudio", False)),
+                "referenceMode": str(v.get("referenceMode") or "guide"),
+            })
 
         prompt_text = str(prompt_finite or "").strip()
         width = int(width)
@@ -355,10 +373,11 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
 
         segments_spec = _parse_segments_input(segments_json)
 
-        # 【L2-c】单段模式下也支持图片过滤：如果 segments_json 是 1 段且提供了 images，
-        # 用它过滤 all_images，避免未引用素材污染采样器。
+        # 【L2-c + 时长同步】单段：从 segments_json 提取 duration + images
+        single_seg_duration = None
         if segments_spec is not None and len(segments_spec) == 1:
             _seg0 = segments_spec[0]
+            # 图片过滤
             _idx = _seg0.get("images")
             if isinstance(_idx, list) and _idx:
                 _filtered = [
@@ -371,11 +390,28 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
                         "Finite bridge single: filtered images to %d (from user references)",
                         len(_filtered),
                     )
-            # 单段：清空 spec，让后续逻辑走原有的单段分支（plan version 4 不变）
+            # 【时长同步】提取段时长，覆盖 bridge widget
+            _d = _seg0.get("duration")
+            if _d is not None:
+                try:
+                    _d_val = float(_d)
+                    if _d_val > 0:
+                        single_seg_duration = _d_val
+                        logging.info(
+                            "Finite bridge single: duration from segments_json = %.2fs (overrides widget %.2fs)",
+                            single_seg_duration, float(duration_sec or 5.0),
+                        )
+                except (TypeError, ValueError):
+                    pass
+            # 单段：清空 spec，走原有单段分支（plan version 4 不变）
             segments_spec = None
 
         if segments_spec is None:
-            seconds = float(duration_sec) if duration_sec else 5.0
+            # 【时长同步】优先用 segments_json 里的段时长；没有则 fallback 到 widget
+            if single_seg_duration is not None:
+                seconds = single_seg_duration
+            else:
+                seconds = float(duration_sec) if duration_sec else 5.0
             length = _aligned_h3_length(seconds)
             timeline = {
                 "version": 9,
@@ -383,7 +419,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
                 "globalPrompt": prompt_text,
                 "images": list(all_images),
                 "audios": list(all_audios),
-                "videoClips": [],
+                "videoClips": list(video_clips),
                 "selection": {"start": 0.0, "duration": seconds},
                 "segmentConfig": {"count": 0, "activeIndex": 0, "mode": "timeline", "segments": []},
                 "videoAudioEnabled": True,
@@ -478,7 +514,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
                 "globalPrompt": seg_prompt,
                 "images": seg_images,
                 "audios": list(all_audios),
-                "videoClips": [],
+                "videoClips": list(video_clips),
                 "selection": {"start": start_frame / H3_FPS, "duration": seg_dur},
                 "segmentConfig": {"count": 0, "activeIndex": 0, "mode": "timeline", "segments": []},
                 "videoAudioEnabled": True,
