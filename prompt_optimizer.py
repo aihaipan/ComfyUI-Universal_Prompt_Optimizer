@@ -812,6 +812,13 @@ def _local_generate_impl(config: dict, payload: dict) -> str:
         for item in media:
             label = str(item.get("label") or "")
             kind = str(item.get("kind") or "")
+            if kind == "refmod":
+                content.append({"type": "text", "text": (
+                    f"{label} is a RefMod reference model whose content is supplied "
+                    f"directly to the video model as a latent. You do NOT receive its "
+                    f"visual data. Refer to it ONLY by its label {label}."
+                )})
+                continue
             if kind == "audio":
                 content.append({"type": "text", "text": f"{label} is an uploaded audio reference; audio data is not transmitted."})
             elif kind == "video":
@@ -1334,12 +1341,36 @@ def _system_prompt_minimax_h3(
         "never merge or renumber one family based on the other. "
         "For every RefMod label used in the prompt, the <Subject N> index MUST equal "
         "the numeric index of the source capitalized label (e.g. <Video 3> -> <Subject 3>). "
-        "RefMod appearance is already supplied to the model as a latent reference; "
-        "identify each RefMod subject with ONLY the minimum distinctive cues needed to "
-        "disambiguate it (gender or subject type, main clothing, main hairstyle, scene). "
-        "Never describe facial features, exact skin tone, or fine detail from a RefMod. "
-        "Do not attempt to describe or reconstruct the reference's pose, background, or "
-        "composition; those come from the latent, not from your text. "
+        "CRITICAL - NO VISUAL DATA FOR REFMODS: You have ZERO visual data for any "
+        "RefMod label. The RefMod's appearance is supplied directly to the video model "
+        "as a latent, NOT to you. You MUST NOT describe, invent, or hallucinate ANY "
+        "attribute of a RefMod subject: no clothing, no hairstyle, no facial features, "
+        "no body type, no age, no gender, no skin tone, no equipment, no accessories, "
+        "no pose, no style. If you find yourself writing colors, garments, or physical "
+        "traits for a subject that references a capitalized label, you are hallucinating "
+        "- stop immediately and delete that text. "
+        "In subject_definitions, define each RefMod subject with a short but complete "
+        "sentence. Follow this template closely: "
+        "'<Subject N> is the single character depicted in <Video N>. All reference "
+        "views show the same individual. Preserve the character's facial identity, "
+        "apparent age, skin tone, hairstyle, hair color, body proportions, original "
+        "clothing, accessories, and shoes. The reference supplies appearance only, "
+        "not motion or editing structure.' "
+        "CRITICAL - CATEGORY NAMES ONLY: after 'Preserve', list the abstract "
+        "categories that remain stable (identity, age, hairstyle, outfit, etc). "
+        "NEVER fill them in with actual values: write 'hairstyle', never 'short "
+        "black hair'; write 'outfit', never 'red jacket'; write 'skin tone', never "
+        "'pale'. Every concrete value comes from the latent, not from your text. "
+        "For non-character RefMods (scene / style / motion), adapt the template: "
+        "'<Subject N> is the scene depicted in <Video N>. The reference supplies "
+        "the scene and lighting; preserve composition and atmosphere.' "
+        "In retention_analysis, use 'fully_preserved' for every RefMod subject (NOT "
+        "'attribute_transfer' or 'partially_preserved' - the reference latent supplies "
+        "the full identity). After the hyphen, state ONLY the preserved CATEGORIES - "
+        "for example 'identity, appearance, hairstyle, outfit, and body proportions are "
+        "fully preserved by the reference model' - WITHOUT describing what those "
+        "categories actually look like. Never write a color, garment name, or physical "
+        "trait; describe only the abstract categories that remain stable. "
         "The optional ' weight=X.X' suffix is supported ONLY in detailed_description "
         "shot design for RefMod subjects, and is OPTIONAL - omit it unless the user "
         "explicitly requests differentiated focus. When omitted, treat all RefMod "
@@ -1993,7 +2024,13 @@ def _user_parts(prompt: str, media: list[dict], read_media: bool) -> list[dict]:
     for item in media:
         label = str(item.get("label") or "")
         kind = str(item.get("kind") or "")
-        if kind == "audio":
+        if kind == "refmod":
+            parts.append({"type": "text", "text": (
+                f"{label} is a RefMod reference model whose content is supplied "
+                f"directly to the video model as a latent. You do NOT receive its "
+                f"visual data. Refer to it ONLY by its label {label}."
+            )})
+        elif kind == "audio":
             parts.append({"type": "text", "text": f"{label} is an uploaded audio reference (content not transmitted)."})
         elif read_media and kind == "video":
             # 【方案A】视频不传帧给 LLM，只传标签，避免污染 Picture 编号

@@ -239,6 +239,9 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
                 io.Custom("GH_PROMPT_STR").Output("prompt_finite"),                
                 # segments_json（String 包装类型）：给 Finite Segment 桥接器使用
                 io.Custom("GH_SEGMENTS_STR").Output("segments_json"),
+                # prompt_refmod（String 类型）：给 H3 RefMod Text Encode 的 prompt 输入使用
+                # 仅当"生视频 → 参考模型"子 tab 激活时输出内容，其他情况为空字符串。
+                io.String.Output("prompt_refmod"),
             ],
         )
 
@@ -270,7 +273,17 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
         # 索引约定：图片 0-8、音频 0-2（跟导演台 MMX_DIR_GROUP 的约定一致）。
         media_bundle = _build_media_bundle(media)
 
-        return io.NodeOutput(image, media_bundle, prompt_text, conditioning, prompt_text, segments_json)
+        # 【RefMod 场景】只在"生视频 → 参考模型"子 tab 时输出 prompt_refmod。
+        # 其他情况输出空字符串，避免污染下游（H3 RefMod Text Encode 的 prompt 输入）。
+        refmod_text = ""
+        try:
+            state = json.loads(gh_state_json) if gh_state_json else {}
+            if state.get("viewMode") == "video" and state.get("currentSubView") == "refmod":
+                refmod_text = prompt_text
+        except Exception as exc:
+            logging.warning("Universal Prompt Optimizer could not parse gh_state_json: %s", exc)
+
+        return io.NodeOutput(image, media_bundle, prompt_text, conditioning, prompt_text, segments_json, refmod_text)
 
 
 class UniversalPromptOptimizerExtension(ComfyExtension):
