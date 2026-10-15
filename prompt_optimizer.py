@@ -349,6 +349,65 @@ def _find_visual_model(selected: str) -> dict | None:
     return next((item for item in _scan_visual_models() if item["relative_path"] == selected), None)
 
 
+def _list_refmods() -> list[dict]:
+    """Scan models/refmods/ (and compat dirs) for .safetensors RefMod files.
+
+    RefMod metadata is stored as a JSON string under the safetensors
+    ``refmod_meta`` header field (not as top-level header keys). We parse
+    that JSON to get the kind (image / video / audio / bundle) so the
+    frontend can build the correct <Video N> / <Picture N> / <Audio N>
+    label. Files without valid RefMod metadata are skipped.
+    """
+    import json as _json
+    from pathlib import Path
+    try:
+        from safetensors import safe_open
+    except ImportError:
+        return []
+    models_dir = Path(folder_paths.models_dir)
+    search_dirs = [
+        models_dir / "refmods",
+        models_dir / "mods",
+        models_dir / "audio_refmods",
+    ]
+    result = []
+    seen = set()
+    for base in search_dirs:
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*.safetensors")):
+            try:
+                with safe_open(str(path), framework="pt", device="cpu") as handle:
+                    raw_meta = handle.metadata() or {}
+            except Exception:
+                continue
+            payload = raw_meta.get("refmod_meta")
+            if isinstance(payload, str):
+                try:
+                    info = _json.loads(payload)
+                except (ValueError, TypeError):
+                    info = {}
+            elif isinstance(payload, dict):
+                info = payload
+            else:
+                info = {}
+            kind = str(info.get("kind") or "").strip().lower()
+            if kind not in ("image", "video", "audio", "bundle"):
+                continue
+            name = path.relative_to(base).with_suffix("").as_posix()
+            if name in seen:
+                continue
+            seen.add(name)
+            result.append({
+                "name": name,
+                "kind": kind,
+                "display_name": str(info.get("name") or name),
+                "concept_type": str(info.get("concept_type") or "generic"),
+                "description": str(info.get("description") or ""),
+            })
+    return sorted(result, key=lambda item: item["name"])
+
+
 def _normalize_config(data: dict | None) -> dict:
     current = DEFAULT_CONFIG
     data = data if isinstance(data, dict) else {}
@@ -934,7 +993,7 @@ OFFICIAL_SKILL_TREE_SHA256 = "b6c4af89b79c044efc8c05865d52cee2cd726ec69c70a6770a
 def _official_h3_source_instruction(task: str) -> str:
     """Load the official MiniMax H3 prompt-writing Skill verbatim."""
     task_upper = str(task or "T2VA").upper()
-    is_ref = task_upper in {"REF2VA", "HYBRID"}
+    is_ref = task_upper in {"REF2VA", "HYBRID", "REFMOD"}
     guide_name = "ref-en.txt" if is_ref else "base-en.txt"
     skill_path = OFFICIAL_H3_SKILL_ROOT / "SKILL.md"
     guide_path = OFFICIAL_H3_SKILL_ROOT / "references" / guide_name
@@ -986,7 +1045,8 @@ def _system_prompt_minimax_h3(
 ) -> str:
     task_upper = task.upper()
     fl2va = task_upper == "FL2VA"
-    full_reference = task_upper in {"REF2VA", "HYBRID"}
+    refmod = task_upper == "REFMOD"
+    full_reference = task_upper in {"REF2VA", "HYBRID", "REFMOD"}
     context = context if isinstance(context, dict) else {}
     label_rule = (
         "FL2VA picture labels must be bare lowercase: picture 1 and picture 2, never angle brackets. "
@@ -1007,7 +1067,8 @@ def _system_prompt_minimax_h3(
             "into one paragraph. In subject_definitions, define reusable visible content as <Subject N> and cite "
             "its source label using one short sentence and no more than four identifying visual traits; define "
             "standalone <Picture N> only for a concrete frame anchor. The <Subject N> index must strictly equal "
-            "the numeric index of the source <picture N> label it references. For example, <picture 7> must be "
+            "the numeric index of the source label it references (<picture N> for native references; "
+            "<Video N> / <Picture N> / <Audio N> for RefMod references). For example, <picture 7> must be "
             "defined as <Subject 7>, even if no <picture 2> through <picture 6> exists. Never renumber, compress, "
             "or offset Subject indices based on array position or the number of items. If a Picture index is missing, "
             "leave the corresponding Subject index unused; do not shift other subjects into it. "
@@ -1264,6 +1325,29 @@ def _system_prompt_minimax_h3(
         "inside the main shot timeline and nowhere else. Do not wrap paraphrased soundscape descriptions, ambient "
         "sounds, or dialogue that the user did not explicitly supply in <d> tags."
     )
+    refmod_rule = (
+        "REFMOD REFERENCE RULE (MANDATORY, HIGHEST PRIORITY): "
+        "RefMod reference models are ALWAYS written with a CAPITALIZED label: "
+        "<Video N>, <Picture N>, <Audio N>. This is deliberately different from the "
+        "native media labels, which are always lowercase (<video N>, <picture N>, "
+        "<audio N>). Both families may appear together and are numbered independently; "
+        "never merge or renumber one family based on the other. "
+        "For every RefMod label used in the prompt, the <Subject N> index MUST equal "
+        "the numeric index of the source capitalized label (e.g. <Video 3> -> <Subject 3>). "
+        "RefMod appearance is already supplied to the model as a latent reference; "
+        "identify each RefMod subject with ONLY the minimum distinctive cues needed to "
+        "disambiguate it (gender or subject type, main clothing, main hairstyle, scene). "
+        "Never describe facial features, exact skin tone, or fine detail from a RefMod. "
+        "Do not attempt to describe or reconstruct the reference's pose, background, or "
+        "composition; those come from the latent, not from your text. "
+        "The optional ' weight=X.X' suffix is supported ONLY in detailed_description "
+        "shot design for RefMod subjects, and is OPTIONAL - omit it unless the user "
+        "explicitly requests differentiated focus. When omitted, treat all RefMod "
+        "subjects as equal priority. "
+        "A single RefMod latent may represent an identity, a scene, a style, an action, "
+        "or a voice; determine its role from the source label kind and from the user's "
+        "request, and describe only the role it actually plays."
+    ) if refmod else ""
     video_rule = (
         "VIDEO REFERENCE RULE (MANDATORY): <video N> labels refer to uploaded videos used for "
         "MOTION / ACTION transfer. Their frames are NOT provided to you. Write ONLY the exact "
@@ -1325,7 +1409,7 @@ def _system_prompt_minimax_h3(
         "information. Do not create labels outside the supplied label list, renumber labels, "
         "or replace labels with filenames. "
         f"Task={task}; duration={duration:.2f}s; available labels={', '.join(labels) or 'none'}. "
-        f"{label_rule} {video_rule} {keyframe_rule} {audio_rule} {structure}{pacing_rule}{singing_rule}{transfer_rule} {dialogue_rule} "
+        f"{label_rule} {video_rule} {keyframe_rule} {audio_rule} {refmod_rule} {structure}{pacing_rule}{singing_rule}{transfer_rule} {dialogue_rule} "
         f"{subject_shorthand_rule} "
         "Audio items are label-only references; never claim you listened to them. Before returning, silently check "
         "that every required section is present in the correct order, every used label exists, no filename appears, "
@@ -2518,6 +2602,13 @@ async def list_prompt_optimizer_models(_request):
     })
 
 
+async def list_refmods(_request):
+    try:
+        return web.json_response({"refmods": _list_refmods()})
+    except Exception as error:
+        return web.json_response({"refmods": [], "error": str(error)}, status=200)
+
+
 async def refresh_runninghub_models(_request):
     try:
         provider = str(_request.query.get("provider") or "runninghub").lower()
@@ -2765,6 +2856,7 @@ def register_prompt_optimizer_routes() -> bool:
     routes = instance.routes
     routes.get("/universal-prompt-optimizer/config")(get_prompt_optimizer_config)
     routes.get("/universal-prompt-optimizer/models")(list_prompt_optimizer_models)
+    routes.get("/universal-prompt-optimizer/refmods")(list_refmods)
     routes.get("/universal-prompt-optimizer/runninghub-models")(refresh_runninghub_models)
     routes.post("/universal-prompt-optimizer/config")(save_prompt_optimizer_config)
     routes.post("/universal-prompt-optimizer/optimize")(optimize_prompt)
