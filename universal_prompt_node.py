@@ -78,6 +78,80 @@ def _hidden_string(name):
     return io.String.Input(name, default="", optional=True, extra_dict={"hidden": True})
 
 
+def _find_refmod_loader():
+    """动态查找 ComfyUI-MiniMaxH3Mod 插件的 RefModsLoader 类。
+
+    sys.modules 里可能有 torch custom class 的同名代理对象——它不是
+    真正的 Python 类，访问属性会触发 torch 的 __getattr__ 抛 RuntimeError。
+    必须用 isinstance(x, type) 过滤，只接受真的类。
+    """
+    import sys
+    for mod in list(sys.modules.values()):
+        try:
+            loader = getattr(mod, "MiniMaxH3RefModsLoader", None)
+        except Exception:
+            continue
+        if loader is None:
+            continue
+        # 排除 torch custom class 代理：必须是真的 Python 类
+        if not isinstance(loader, type):
+            continue
+        try:
+            if not hasattr(loader, "load"):
+                continue
+        except Exception:
+            continue
+        return loader
+    return None
+
+
+def _build_refmod_load_kwargs(gh_state_json: str) -> dict:
+    """从 gh_state_json 里提取用户选的 RefMod 列表，拼成 load() 的 kwargs。"""
+    try:
+        state = json.loads(gh_state_json) if gh_state_json else {}
+    except Exception:
+        return {}
+    entries = state.get("media") or []
+    collected = []
+    for item in entries:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            continue
+        slot, entry = item
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("kind") != "refmod":
+            continue
+        m = re.match(r"refmod_(\d+)$", str(slot))
+        if not m:
+            continue
+        collected.append((int(m.group(1)), entry))
+    collected.sort(key=lambda x: x[0])
+
+    kwargs = {"show_info": False, "max_total_tokens": 0}
+    for i, (_, entry) in enumerate(collected[:8], start=1):
+        name = str(entry.get("name") or "").strip()
+        if not name:
+            continue
+        try:
+            strength = max(0.0, min(1.0, float(entry.get("strength") if entry.get("strength") is not None else 1.0)))
+        except (TypeError, ValueError):
+            strength = 1.0
+        try:
+            copies = max(1, min(10, int(entry.get("copies") if entry.get("copies") is not None else 1)))
+        except (TypeError, ValueError):
+            copies = 1
+        components = str(entry.get("components") or "All")
+        if components not in ("All", "Visual", "Audio"):
+            components = "All"
+        kwargs[f"mod_{i}"] = name
+        kwargs[f"strength_{i}"] = strength
+        kwargs[f"copies_{i}"] = copies
+        kwargs[f"components_{i}"] = components
+        kwargs[f"visual_strength_{i}"] = 1.0
+        kwargs[f"audio_strength_{i}"] = 1.0
+    return kwargs
+
+
 def _probe_video_metadata(filename: str) -> dict:
     """用 ffprobe 探测视频的 duration 和 hasAudio。失败返回空 dict。"""
     try:
@@ -242,6 +316,7 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
                 # prompt_refmod（String 类型）：给 H3 RefMod Text Encode 的 prompt 输入使用
                 # 仅当"生视频 → 参考模型"子 tab 激活时输出内容，其他情况为空字符串。
                 io.String.Output("prompt_refmod"),
+                io.Custom("H3_REF_MODS").Output("refmod_mods"),
             ],
         )
 
@@ -273,17 +348,34 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
         # 索引约定：图片 0-8、音频 0-2（跟导演台 MMX_DIR_GROUP 的约定一致）。
         media_bundle = _build_media_bundle(media)
 
-        # 【RefMod 场景】只在"生视频 → 参考模型"子 tab 时输出 prompt_refmod。
-        # 其他情况输出空字符串，避免污染下游（H3 RefMod Text Encode 的 prompt 输入）。
+        # 【RefMod 场景】只在"生视频 → 参考模型"子 tab 时构造 prompt_refmod 与 refmod_mods。
         refmod_text = ""
+        refmod_mods = None
         try:
             state = json.loads(gh_state_json) if gh_state_json else {}
-            if state.get("viewMode") == "video" and state.get("currentSubView") == "refmod":
-                refmod_text = prompt_text
+            is_refmod_view = (state.get("viewMode") == "video"
+                              and state.get("currentSubView") == "refmod")
         except Exception as exc:
             logging.warning("Universal Prompt Optimizer could not parse gh_state_json: %s", exc)
+            is_refmod_view = False
 
-        return io.NodeOutput(image, media_bundle, prompt_text, conditioning, prompt_text, segments_json, refmod_text)
+        if is_refmod_view:
+            refmod_text = prompt_text
+            loader_cls = _find_refmod_loader()
+            if loader_cls is None:
+                logging.warning("Universal Prompt Optimizer: MiniMaxH3Mod not loaded; refmod_mods will be None.")
+            else:
+                kwargs = _build_refmod_load_kwargs(gh_state_json)
+                try:
+                    refmod_mods = loader_cls().load(**kwargs)[0]
+                except Exception as exc:
+                    logging.warning("Universal Prompt Optimizer: RefMod load failed: %s", exc)
+                    refmod_mods = None
+
+        return io.NodeOutput(
+            image, media_bundle, prompt_text, conditioning,
+            prompt_text, segments_json, refmod_text, refmod_mods,
+        )
 
 
 class UniversalPromptOptimizerExtension(ComfyExtension):

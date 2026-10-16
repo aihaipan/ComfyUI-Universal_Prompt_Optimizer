@@ -231,7 +231,7 @@ function createPanel(node) {
         .ghupo-tag-refmod{background:#5a4930;color:#f7e0cd;-webkit-text-fill-color:#f7e0cd;border:1px solid #8a6d43}
         .ghupo-refmod-kind{cursor:pointer;user-select:none;transition:filter .12s}
         .ghupo-refmod-kind:hover{filter:brightness(1.4)}
-        .ghupo-preview.ghupo-refmod-name{flex:initial;width:auto;height:auto;padding:0 5px;font:9px/1.4 Arial;color:#f7e0cd;background:rgba(90,73,48,.55);border:1px solid #8a6d43;border-radius:3px;display:inline-block;vertical-align:middle;margin:0 3px 0 1px}
+        .ghupo-preview.ghupo-refmod-name{flex:initial;width:auto;height:auto;padding:0 5px;font:9px/1.4 Arial;color:#f7e0cd;background:rgba(90,73,48,.55);border:1px solid #8a6d43;border-radius:3px;display:inline-block;vertical-align:middle;margin:0 3px 0 1px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-sizing:border-box}
         .ghupo-preview{display:inline-flex;vertical-align:middle;flex:0 0 26px;width:26px;height:26px;margin-left:.5em;margin-right:4px;border:1px solid rgba(91,124,143,.72);border-radius:5px;background:#14222d;color:#77a5b7;align-items:center;justify-content:center;font:14px/26px Arial,sans-serif;overflow:hidden;vertical-align:middle}
         .ghupo-preview img{width:100%;height:100%;object-fit:cover}
         .ghupo-preview.audio{border-radius:50%}
@@ -326,15 +326,51 @@ function createPanel(node) {
         .ghupo-subpanel{padding-top:7px}
         .ghupo-subpanel.hidden{display:none}
         /* ===== RefMod 参考模型区 ===== */
+        /* ===== RefMod 卡片网格 ===== */
         .ghupo-refmod-box{margin-top:0}
-        .ghupo-refmod-header{display:flex;align-items:center;gap:6px;padding:5px 8px;background:#1a2a38;cursor:pointer;user-select:none;font:10px/1.4 Arial;border-radius:6px}
-        .ghupo-refmod-header:hover{background:#1f3140}
-        .ghupo-refmod-toggle{color:#6f8291;font-size:11px;padding:0 2px;min-width:12px;text-align:center}
-        .ghupo-refmod-title{color:#cdf0f7;font-weight:600}
-        .ghupo-refmod-count{margin-left:auto;color:#6f8291;font-size:9px}
-        .ghupo-refmod-body{padding:6px 0 0;display:flex;flex-direction:column;gap:4px}
-        .ghupo-refmod-body.hidden{display:none}
-        .ghupo-refmod-row{display:flex;align-items:center;gap:4px;padding:4px 6px;background:#14202c;border:1px solid #2c4255;border-radius:4px;font:10px Arial;color:#dce7ee}
+        .ghupo-refmod-body{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:0}
+        .ghupo-refmod-card{position:relative;aspect-ratio:1;border:1px solid #30485c;border-radius:6px;background:#1a2938;overflow:hidden;cursor:pointer;transition:background .12s,border-color .12s}
+        .ghupo-refmod-card:hover{background:#203648;border-color:#0aa4d6}
+        .ghupo-refmod-card-icon{position:absolute;left:0;right:0;top:32%;text-align:center;font-size:32px;line-height:1;pointer-events:none}
+        .ghupo-refmod-card-name-text{position:absolute;left:6px;right:6px;bottom:22px;height:20px;display:flex;align-items:center;justify-content:center;font:10px/1.2 Arial;color:#dce7ee;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;pointer-events:none;padding:0 2px}
+        .ghupo-refmod-card-name-text::after{content:"▾";margin-left:3px;font-size:9px;color:#8ea3b4;flex-shrink:0;transition:color .12s}
+        .ghupo-refmod-card:hover .ghupo-refmod-card-name-text::after{color:#0aa4d6}
+        .ghupo-refmod-card-name-select{display:none}
+        .ghupo-refmod-card-copies{position:absolute;top:3px;left:3px;width:22px;height:16px;background:#0f1a24;border:1px solid #2c4255;border-radius:3px;color:#cdf0f7;text-align:center;font:10px/14px Arial;outline:none;-moz-appearance:textfield;padding:0;z-index:3;cursor:ew-resize}
+        .ghupo-refmod-card-copies::-webkit-outer-spin-button,.ghupo-refmod-card-copies::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+        .ghupo-refmod-card-copies:hover{border-color:#0aa4d6;color:#fff}
+        .ghupo-refmod-card-strength{position:absolute;top:3px;right:3px;display:inline-flex;align-items:center;height:16px;background:#0f1a24;border:1px solid #2c4255;border-radius:3px;padding:0 1px;z-index:3}
+        .ghupo-refmod-card-str-dec,.ghupo-refmod-card-str-inc{width:11px;height:14px;padding:0;border:0;background:transparent;color:#6f8291;font:11px/14px Arial;cursor:pointer;user-select:none}
+        .ghupo-refmod-card-str-dec:hover,.ghupo-refmod-card-str-inc:hover{color:#cdf0f7}
+        .ghupo-refmod-card-str-input{width:24px;height:14px;background:transparent;border:0;color:#cdf0f7;text-align:center;font:10px/14px Arial;outline:none;-moz-appearance:textfield;padding:0;cursor:ew-resize}
+        .ghupo-refmod-card-str-input::-webkit-outer-spin-button,.ghupo-refmod-card-str-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+        .ghupo-refmod-card-del{position:absolute;bottom:3px;right:3px;width:18px;height:18px;padding:0;border:0;border-radius:3px;background:rgba(0,0,0,.4);color:#8ea3b4;font:12px/18px Arial;cursor:pointer;z-index:3}
+        .ghupo-refmod-card-del:hover{background:#ff5b5b;color:#fff}
+        .ghupo-refmod-card-kind{position:absolute;left:3px;bottom:3px;padding:1px 4px;border-radius:3px;font:9px/12px Arial;font-weight:600;white-space:nowrap;z-index:3}
+        .ghupo-refmod-card-kind.picture{background:#31515a;color:#cdf0f7}
+        .ghupo-refmod-card-kind.video{background:#493f59;color:#e0cdf7}
+        .ghupo-refmod-card-kind.audio{background:#3b3b3b;color:#cdcdcd}
+        .ghupo-refmod-card-kind.bundle{background:#5a4930;color:#f7e0cd}
+        .ghupo-refmod-add-card{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#08b4ed;cursor:pointer;border:1px dashed #2c5368;border-radius:6px;background:#101b26;padding:6px;box-sizing:border-box}
+        .ghupo-refmod-add-card:hover{border-color:#0aa4d6;background:#142633}
+        .ghupo-refmod-add-card .icon{font-size:22px;line-height:1.2;color:#08b4ed}
+        .ghupo-refmod-add-card .title{font-size:10px;line-height:1.3;color:#d9e8f2;margin-top:4px}
+        .ghupo-refmod-add-card:disabled{opacity:.4;cursor:not-allowed}
+        .ghupo-refmod-empty{grid-column:1/-1;padding:12px;text-align:center;color:#6f8291;font:10px Arial;font-style:italic}
+        .ghupo-refmod-card-select optgroup{background:#0f1a24;color:#8ea3b4}
+        .ghupo-refmod-card-select option{background:#0f1a24;color:#dce7ee}
+        /* RefMod 模型选择浮层（复用 mention 风格） */
+        .ghupo-refmod-picker{position:fixed;z-index:10100;min-width:200px;max-width:320px;max-height:280px;overflow-y:auto;background:#17222c;border:1px solid #3a4d5b;border-radius:6px;box-shadow:0 10px 28px rgba(0,0,0,.5);padding:4px;font:12px Arial}
+        .ghupo-refmod-picker-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:4px;color:#dce7ee;cursor:pointer}
+        .ghupo-refmod-picker-item:hover{background:#274252}
+        .ghupo-refmod-picker-item.selected{background:#274252}
+        .ghupo-refmod-picker-kind{flex-shrink:0;padding:1px 5px;border-radius:3px;font:9px/12px Arial;font-weight:600}
+        .ghupo-refmod-picker-kind.picture{background:#31515a;color:#cdf0f7}
+        .ghupo-refmod-picker-kind.video{background:#493f59;color:#e0cdf7}
+        .ghupo-refmod-picker-kind.audio{background:#3b3b3b;color:#cdcdcd}
+        .ghupo-refmod-picker-kind.bundle{background:#5a4930;color:#f7e0cd}
+        .ghupo-refmod-picker-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ghupo-refmod-picker-group{padding:6px 8px 3px;color:#6f8291;font:9px Arial;font-weight:600}
         .ghupo-refmod-row .ghupo-refmod-select{flex:1;min-width:0;background:#0f1a24;color:#dce7ee;border:1px solid #2c4255;border-radius:3px;height:20px;padding:0 4px;font:10px Arial;outline:none}
         .ghupo-refmod-kind{padding:1px 5px;border-radius:3px;font:9px/14px Arial;font-weight:600;white-space:nowrap}
         .ghupo-refmod-kind.picture{background:#31515a;color:#cdf0f7}
@@ -435,6 +471,10 @@ function createPanel(node) {
     // ---- Toast 容器（右下角浮窗，非打断）----
     const toastContainer = make("div"); toastContainer.className = "ghupo-toast-container";
     document.body.appendChild(toastContainer);
+    // RefMod 模型选择浮层
+    const refmodPicker = make("div"); refmodPicker.className = "ghupo-refmod-picker";
+    refmodPicker.style.display = "none";
+    document.body.appendChild(refmodPicker);
     const showToast = (msg) => {
         const toast = make("div"); toast.className = "ghupo-toast";
         const text = make("span", {}, msg);
@@ -1322,7 +1362,15 @@ function createPanel(node) {
                         const preview = make("span");
                         preview.className = "ghupo-preview" + (d.type === "audio" ? " audio" : "");
                         preview.contentEditable = "false";
-                        if (d.type === "picture") {
+                        if (d.isRefmod) {
+                            // RefMod 没有缩略图，用 kind 图标代替空框
+                            const kindBase = d.type.slice(7); // "video" | "picture" | "audio"
+                            preview.textContent = kindBase === "picture" ? "🖼" : kindBase === "video" ? "🎬" : "🎤";
+                            preview.style.fontSize = "13px";
+                            preview.style.lineHeight = "24px";
+                            preview.style.textAlign = "center";
+                            preview.title = "RefMod 参考模型（" + kindBase + "）";
+                        } else if (d.type === "picture") {
                             const img = make("img"); img.src = fileUrl(entry.name); preview.appendChild(img);
                         } else if (d.type === "video") {
                             const vid = make("video"); vid.src = fileUrl(entry.name); vid.muted = true; vid.preload = "metadata"; preview.appendChild(vid);
@@ -1569,7 +1617,15 @@ function createPanel(node) {
         // 用户主动打字 = 恢复流程确实结束了（或这是一个全新节点）。
         // 在这里解除保护，之后 persist 才能安心写 widget。
         if (restoringState) restoringState = false;
-        
+
+        // 尝试快捷展开：v1 → <Video 1>
+        if (tryExpandShortRefmodTag()) {
+            persist();
+            updateOptimizeButton();
+            renderStoryboard();
+            return;
+        }
+
         const inputText = editorText();
         // 【内容比对兜底】先判断内容是否等于缓存里的优化稿：
         // - 相等 → 立刻恢复 optimized 视图（解决剪切/粘贴、全选删除再粘贴回来的场景）
@@ -2356,6 +2412,7 @@ function createPanel(node) {
         countRow.style.display = isMedia ? "" : "none";
         // 参考模型子 tab 下隐藏故事板
         if (typeof renderStoryboard === "function") renderStoryboard();
+        if (typeof refreshPromptPlaceholder === "function") refreshPromptPlaceholder();
         if (typeof persist === "function") persist();
     }
 
@@ -2365,6 +2422,64 @@ function createPanel(node) {
     function refmodSlotsUsed() {
         return REFMOD_SLOTS.filter(s => media.has(s));
     }
+
+    let refmodPickerSlot = null;
+    function showRefmodPicker(slot, anchorEl) {
+        const catalog = refmodCatalog || [];
+        if (!catalog.length) return;
+        refmodPickerSlot = slot;
+        refmodPicker.replaceChildren();
+        const groups = { video: [], picture: [], audio: [], bundle: [] };
+        for (const item of catalog) {
+            const k = String(item.kind || "video").toLowerCase();
+            const bucket = k === "image" ? "picture" : (groups[k] ? k : "video");
+            groups[bucket].push(item);
+        }
+        const groupLabels = { video: "Video", picture: "Picture", audio: "Audio", bundle: "Bundle" };
+        const currentName = String(media.get(slot)?.name || "");
+        for (const [bucket, list] of Object.entries(groups)) {
+            if (!list.length) continue;
+            const gl = make("div", {}, groupLabels[bucket]);
+            gl.className = "ghupo-refmod-picker-group";
+            refmodPicker.appendChild(gl);
+            for (const item of list) {
+                const row = make("div");
+                row.className = "ghupo-refmod-picker-item" + (item.name === currentName ? " selected" : "");
+                const kindName = String(item.kind || "video").toLowerCase() === "image" ? "picture" : String(item.kind || "video").toLowerCase();
+                const kindEl = make("span", {}, kindName === "picture" ? "P" : kindName.charAt(0).toUpperCase());
+                kindEl.className = `ghupo-refmod-picker-kind ${kindName}`;
+                const nameEl = make("span", {}, item.display_name || item.name);
+                nameEl.className = "ghupo-refmod-picker-name";
+                row.append(kindEl, nameEl);
+                row.onclick = (e) => {
+                    e.stopPropagation();
+                    const e2 = media.get(slot); if (!e2) return;
+                    e2.name = item.name;
+                    e2.displayName = item.display_name || item.name;
+                    e2.refmodKind = String(item.kind || "video").toLowerCase();
+                    e2.conceptType = item.concept_type || "generic";
+                    e2.description = item.description || "";
+                    if (!e2.components) e2.components = "All";
+                    hideRefmodPicker();
+                    persist(); renderRefmodSection();
+                };
+                refmodPicker.appendChild(row);
+            }
+        }
+        const rect = anchorEl.getBoundingClientRect();
+        refmodPicker.style.left = Math.max(4, rect.left) + "px";
+        refmodPicker.style.top = (rect.bottom + 4) + "px";
+        refmodPicker.style.display = "block";
+    }
+    function hideRefmodPicker() {
+        refmodPicker.style.display = "none";
+        refmodPickerSlot = null;
+    }
+    document.addEventListener("click", (e) => {
+        if (refmodPicker.style.display !== "block") return;
+        if (refmodPicker.contains(e.target)) return;
+        hideRefmodPicker();
+    }, true);
 
     function insertRefmodTag(slot) {
         const entry = media.get(slot);
@@ -2389,24 +2504,108 @@ function createPanel(node) {
         persist();
         renderRich();
     }
+
+    function refreshPromptPlaceholder() {
+        if (viewMode === "video" && currentSubView === "refmod") {
+            prompt.dataset.placeholder = "输入 v1 / p1 / a1 / 模型1 快速引用 RefMod；点击卡片插入标签";
+        } else {
+            prompt.dataset.placeholder = t("Prompt: Type @ to reference uploaded media, e.g. @图片1, @video 1, @audio 1，图1，视频1，音频1，图一，video1，audio1，picture1，image1；你甚至还可以鼠标左键直接点击上面的素材进行快速选择引用！");
+        }
+    }
+
+    function tryExpandShortRefmodTag() {
+        // 只在"生视频 → 参考模型"子 tab 生效
+        if (viewMode !== "video" || currentSubView !== "refmod") return false;
+        const offsets = selectionOffsets();
+        if (!offsets || offsets[0] !== offsets[1]) return false;  // 有选区不处理
+        const caret = offsets[0];
+        const text = editorText();
+        const lookbackStart = Math.max(0, caret - 20);
+        const before = text.slice(lookbackStart, caret);
+        // 匹配：v/p/a/模型 + 数字，光标正好在数字后
+        // 边界：前面不能是字母数字汉字（避免 hello1 触发）
+        const m = before.match(/(^|[^\w\u4e00-\u9fff])(v|p|a|模型)\s*(\d+)$/i);
+        if (!m) return false;
+        const kindChar = String(m[2]).toLowerCase();
+        const num = parseInt(m[3], 10);
+        if (!Number.isFinite(num) || num < 1 || num > 8) return false;
+
+        let kindWord = null;
+        if (kindChar === "v") kindWord = "Video";
+        else if (kindChar === "p") kindWord = "Picture";
+        else if (kindChar === "a") kindWord = "Audio";
+        else if (kindChar === "模型") {
+            const used = refmodSlotsUsed();
+            if (num > used.length) return false;
+            const slot = used[num - 1];
+            const e = media.get(slot);
+            if (!e) return false;
+            const k = String(e.refmodKind || "video").toLowerCase();
+            kindWord = k === "image" ? "Picture" : k === "video" ? "Video" : k === "audio" ? "Audio" : null;
+        }
+        if (!kindWord) return false;
+
+        // 校验：该 kind 组里必须有第 N 个 RefMod 存在
+        const targetKind = kindWord === "Picture" ? "image" : kindWord.toLowerCase();
+        const sameKind = refmodSlotsUsed().filter(s => {
+            const e = media.get(s);
+            return e && String(e.refmodKind || "video").toLowerCase() === targetKind;
+        });
+        if (num > sameKind.length) return false;
+
+        // 执行替换
+        const matchStart = lookbackStart + before.lastIndexOf(m[0]);
+        const replacement = `<${kindWord} ${num}> `;
+        prompt.setRangeText(replacement, matchStart, caret, "end");
+        return true;
+    }
     function refmodSlotsFree() {
         return REFMOD_SLOTS.filter(s => !media.has(s));
     }
 
     function renderRefmodSection() {
         refmodBody.replaceChildren();
-
+        const catalog = refmodCatalog || [];
         const usedSlots = refmodSlotsUsed();
-        // 每一行：下拉 + kind 徽章 + strength + copies + components(仅 bundle) + 删除
+
+        // 空状态
+        if (usedSlots.length === 0 && (!catalog || catalog.length === 0)) {
+            const empty = make("div", {}, "models/refmods/ 下没有可用的 RefMod 文件");
+            empty.className = "ghupo-refmod-empty";
+            refmodBody.appendChild(empty);
+            return;
+        }
+
+        const KIND_ICONS = { video: "🎬", picture: "🖼", image: "🖼", audio: "🎤", bundle: "📦" };
+
         for (const slot of usedSlots) {
             const entry = media.get(slot);
-            const row = make("div"); row.className = "ghupo-refmod-row";
+            const kindRaw = String(entry?.refmodKind || "video").toLowerCase();
+            const kindCls = kindRaw === "image" ? "picture" : (["video","audio","bundle"].includes(kindRaw) ? kindRaw : "video");
+            const icon = KIND_ICONS[kindRaw] || "🎬";
 
-            // 下拉（当前选中项的显示）
-            const sel = make("select"); sel.className = "ghupo-refmod-select";
-            const catalog = refmodCatalog || [];
-            const currentName = String(entry?.name || "");
-            // 分组：按 kind
+            const card = make("div"); card.className = "ghupo-refmod-card";
+            card.dataset.slot = slot;
+
+            // 中央图标
+            const iconEl = make("div", {}, icon); iconEl.className = "ghupo-refmod-card-icon";
+            card.appendChild(iconEl);
+
+            // 名字（显示 + 隐藏 select 覆盖）
+            const displayName = entry?.displayName || (entry?.name || "").split("/").pop() || entry?.name || "(未选)";
+            const nameText = make("div", {}, displayName);
+            nameText.className = "ghupo-refmod-card-name-text";
+            nameText.title = entry?.name || "";
+            nameText.style.cursor = "pointer";
+            nameText.style.pointerEvents = "auto";
+            nameText.onclick = (e) => {
+                e.stopPropagation();
+                showRefmodPicker(slot, nameText);
+            };
+            card.appendChild(nameText);
+
+            const nameSel = document.createElement("select");
+            nameSel.className = "ghupo-refmod-card-name-select";
             const groups = { video: [], picture: [], audio: [], bundle: [] };
             for (const item of catalog) {
                 const k = String(item.kind || "video").toLowerCase();
@@ -2418,20 +2617,19 @@ function createPanel(node) {
                 if (!list.length) continue;
                 const og = document.createElement("optgroup"); og.label = groupLabels[bucket];
                 for (const item of list) {
-                    const opt = new Option(`${item.display_name || item.name}  ·  ${item.kind}`, item.name);
-                    og.append(opt);
+                    og.append(new Option(`${item.display_name || item.name}  ·  ${item.kind}`, item.name));
                 }
-                sel.append(og);
+                nameSel.append(og);
             }
+            const currentName = String(entry?.name || "");
             if (currentName && !catalog.some(x => x.name === currentName)) {
-                sel.append(new Option(`${currentName} (已丢失)`, currentName));
+                nameSel.append(new Option(`${currentName} (已丢失)`, currentName));
             }
-            sel.value = currentName;
-            sel.onchange = () => {
-                const next = catalog.find(x => x.name === sel.value);
+            nameSel.value = currentName;
+            nameSel.onchange = () => {
+                const next = catalog.find(x => x.name === nameSel.value);
                 if (!next) return;
-                const e2 = media.get(slot);
-                if (!e2) return;
+                const e2 = media.get(slot); if (!e2) return;
                 e2.name = next.name;
                 e2.displayName = next.display_name || next.name;
                 e2.refmodKind = String(next.kind || "video").toLowerCase();
@@ -2440,44 +2638,14 @@ function createPanel(node) {
                 if (!e2.components) e2.components = "All";
                 persist(); renderRefmodSection();
             };
-            row.appendChild(sel);
+            card.appendChild(nameSel);
 
-            // kind 徽章
-            const kindRaw = String(entry?.refmodKind || "video").toLowerCase();
-            const kindCls = kindRaw === "image" ? "picture" : (["video","audio","bundle"].includes(kindRaw) ? kindRaw : "video");
-            const badge = make("span", {}, kindRaw === "image" ? "Picture" : kindRaw.charAt(0).toUpperCase() + kindRaw.slice(1));
-            badge.className = `ghupo-refmod-kind ${kindCls}`;
-            badge.title = "点击插入引用标签";
-            badge.onclick = (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                insertRefmodTag(slot);
-            };
-            row.appendChild(badge);
-
-            // strength
-            const strLabel = make("span", {}, "强度"); strLabel.className = "ghupo-refmod-label";
-            const strInput = make("input"); strInput.type = "number";
-            strInput.className = "ghupo-refmod-num";
-            strInput.min = "0"; strInput.max = "1"; strInput.step = "0.05";
-            strInput.value = Number.isFinite(Number(entry?.strength)) ? Number(entry.strength).toFixed(2) : "1.00";
-            strInput.onchange = () => {
-                const e2 = media.get(slot); if (!e2) return;
-                let v = parseFloat(strInput.value);
-                if (!Number.isFinite(v)) v = 1.0;
-                v = Math.max(0, Math.min(1, v));
-                e2.strength = v;
-                strInput.value = v.toFixed(2);
-                persist();
-            };
-            row.appendChild(strLabel); row.appendChild(strInput);
-
-            // copies
-            const cpLabel = make("span", {}, "×"); cpLabel.className = "ghupo-refmod-label";
+            // 左上 copies
             const cpInput = make("input"); cpInput.type = "number";
-            cpInput.className = "ghupo-refmod-num";
+            cpInput.className = "ghupo-refmod-card-copies";
             cpInput.min = "1"; cpInput.max = "10"; cpInput.step = "1";
             cpInput.value = String(Number.isFinite(Number(entry?.copies)) ? Math.max(1, Math.min(10, Math.round(Number(entry.copies)))) : 1);
+            cpInput.title = "副本份数（2+ = 同一参考重复注入，增强权重）";
             cpInput.onchange = () => {
                 const e2 = media.get(slot); if (!e2) return;
                 let v = parseInt(cpInput.value, 10);
@@ -2487,70 +2655,121 @@ function createPanel(node) {
                 cpInput.value = String(v);
                 persist();
             };
-            row.appendChild(cpLabel); row.appendChild(cpInput);
+            cpInput.addEventListener("click", e => e.stopPropagation());
+            cpInput.addEventListener("pointerdown", e => e.stopPropagation());
+            card.appendChild(cpInput);
 
-            // components（仅 bundle 显示）
-            if (kindRaw === "bundle") {
-                const compLabel = make("span", {}, "组件"); compLabel.className = "ghupo-refmod-label";
-                const compSel = make("select"); compSel.className = "ghupo-refmod-select"; compSel.style.flex = "0 0 62px";
-                for (const opt of ["All", "Visual", "Audio"]) compSel.append(new Option(opt, opt));
-                compSel.value = ["All","Visual","Audio"].includes(entry?.components) ? entry.components : "All";
-                compSel.onchange = () => {
-                    const e2 = media.get(slot); if (!e2) return;
-                    e2.components = compSel.value;
-                    persist();
-                };
-                row.appendChild(compLabel); row.appendChild(compSel);
-            }
+            // 右上 强度
+            const strGroup = make("div"); strGroup.className = "ghupo-refmod-card-strength";
+            const strDec = make("button", {}, "−"); strDec.className = "ghupo-refmod-card-str-dec";
+            const strInput = make("input"); strInput.type = "number";
+            strInput.className = "ghupo-refmod-card-str-input";
+            strInput.min = "0"; strInput.max = "1"; strInput.step = "0.05";
+            strInput.value = Number.isFinite(Number(entry?.strength)) ? Number(entry.strength).toFixed(2) : "1.00";
+            const strInc = make("button", {}, "+"); strInc.className = "ghupo-refmod-card-str-inc";
+            strGroup.append(strDec, strInput, strInc);
+            const writeStrength = (v) => {
+                const e2 = media.get(slot); if (!e2) return;
+                let val = Number(v);
+                if (!Number.isFinite(val)) val = 1.0;
+                val = Math.max(0, Math.min(1, Math.round(val * 20) / 20));
+                e2.strength = val;
+                strInput.value = val.toFixed(2);
+                persist();
+            };
+            strDec.onclick = (e) => { e.stopPropagation(); e.preventDefault(); writeStrength((Number(media.get(slot)?.strength) || 1.0) - 0.05); };
+            strInc.onclick = (e) => { e.stopPropagation(); e.preventDefault(); writeStrength((Number(media.get(slot)?.strength) || 1.0) + 0.05); };
+            strInput.onchange = () => writeStrength(strInput.value);
+            strInput.addEventListener("click", e => e.stopPropagation());
+            let strDrag = null;
+            strInput.addEventListener("pointerdown", (e) => {
+                e.stopPropagation();
+                if (e.button !== 0) return;
+                strDrag = { startX: e.clientX, startVal: Number(media.get(slot)?.strength) || 1.0, dragging: false, id: e.pointerId };
+                try { strInput.setPointerCapture(e.pointerId); } catch {}
+            });
+            strInput.addEventListener("pointermove", (e) => {
+                const s = strDrag; if (!s || s.id !== e.pointerId) return;
+                const dx = e.clientX - s.startX;
+                if (!s.dragging && Math.abs(dx) > 4) { s.dragging = true; strInput.blur(); }
+                if (s.dragging) {
+                    e.preventDefault();
+                    const next = Math.round((s.startVal + dx / 8 * 0.1) * 20) / 20;
+                    strInput.value = Math.max(0, Math.min(1, next)).toFixed(2);
+                }
+            });
+            const endStrDrag = (e) => {
+                const s = strDrag; if (!s) return;
+                try { strInput.releasePointerCapture?.(s.id); } catch {}
+                if (s.dragging) writeStrength(strInput.value);
+                strDrag = null;
+            };
+            strInput.addEventListener("pointerup", endStrDrag);
+            strInput.addEventListener("pointercancel", endStrDrag);
+            card.appendChild(strGroup);
 
-            // 删除
-            const del = make("button", {}, "×"); del.className = "ghupo-refmod-del";
+            // 左下 kind 徽章
+            const badge = make("span", {}, kindRaw === "image" ? "Picture" : kindRaw.charAt(0).toUpperCase() + kindRaw.slice(1));
+            badge.className = `ghupo-refmod-card-kind ${kindCls}`;
+            card.appendChild(badge);
+
+            // 右下 删除
+            const del = make("button", {}, "×"); del.className = "ghupo-refmod-card-del";
             del.title = "删除此 RefMod";
             del.onclick = (e) => {
                 e.stopPropagation(); e.preventDefault();
                 media.delete(slot);
                 persist(); renderRefmodSection();
             };
-            row.appendChild(del);
+            del.addEventListener("pointerdown", e => e.stopPropagation());
+            card.appendChild(del);
 
-            refmodBody.appendChild(row);
+            // 卡片点击 → 插入标签（名字 select / 强度 / copies / 删除 已 stopPropagation）
+            card.onclick = (e) => {
+                // 如果点击的是 select/input/button 则忽略（保险）
+                if (e.target.closest("select, input, button")) return;
+                insertRefmodTag(slot);
+            };
+
+            refmodBody.appendChild(card);
         }
 
-        // 添加按钮（满 8 个时禁用）
-        const addBtn = make("button", {}, `＋ 添加 RefMod`);
-        addBtn.className = "ghupo-refmod-add";
-        if (refmodSlotsFree().length === 0) {
-            addBtn.disabled = true;
-            addBtn.textContent = "已达上限 8";
+        // 添加按钮（未满 8 个时显示）
+        const free = refmodSlotsFree();
+        if (free.length > 0) {
+            const addCard = make("div"); addCard.className = "ghupo-refmod-add-card";
+            const addIcon = make("div", {}, "＋"); addIcon.className = "icon";
+            const addTitle = make("div", {}, "添加 RefMod"); addTitle.className = "title";
+            addCard.append(addIcon, addTitle);
+            addCard.onclick = async (e) => {
+                e.stopPropagation(); e.preventDefault();
+                await fetchRefmodCatalog(true);
+                const freeNow = refmodSlotsFree();
+                if (!freeNow.length) return;
+                const slot = freeNow[0];
+                const catalogNow = refmodCatalog || [];
+                if (!catalogNow.length) {
+                    alert(refmodCatalogError
+                        ? `无法加载 RefMod 列表：${refmodCatalogError}`
+                        : "models/refmods/ 下没有可用的 RefMod 文件");
+                    return;
+                }
+                const first = catalogNow[0];
+                media.set(slot, {
+                    kind: "refmod",
+                    name: first.name,
+                    displayName: first.display_name || first.name,
+                    refmodKind: String(first.kind || "video").toLowerCase(),
+                    conceptType: first.concept_type || "generic",
+                    description: first.description || "",
+                    strength: 1.0,
+                    copies: 1,
+                    components: "All",
+                });
+                persist(); renderRefmodSection();
+            };
+            refmodBody.appendChild(addCard);
         }
-        addBtn.onclick = async (e) => {
-            e.stopPropagation(); e.preventDefault();
-            await fetchRefmodCatalog(true);
-            const free = refmodSlotsFree();
-            if (!free.length) return;
-            const slot = free[0];
-            const catalog = refmodCatalog || [];
-            if (!catalog.length) {
-                alert(refmodCatalogError
-                    ? `无法加载 RefMod 列表：${refmodCatalogError}`
-                    : "models/refmods/ 下没有可用的 RefMod 文件");
-                return;
-            }
-            const first = catalog[0];
-            media.set(slot, {
-                kind: "refmod",
-                name: first.name,
-                displayName: first.display_name || first.name,
-                refmodKind: String(first.kind || "video").toLowerCase(),
-                conceptType: first.concept_type || "generic",
-                description: first.description || "",
-                strength: 1.0,
-                copies: 1,
-                components: "All",
-            });
-            persist(); renderRefmodSection();
-        };
-        refmodBody.appendChild(addBtn);
     }
 
     const render = () => {
@@ -3034,6 +3253,7 @@ function createPanel(node) {
         updateOptimizeButton();
         render();
         renderStoryboard();
+        if (typeof refreshPromptPlaceholder === "function") refreshPromptPlaceholder();
         persist();
     };
     // 初始化：按当前模式应用时长控件可见性
@@ -3990,6 +4210,8 @@ function createPanel(node) {
                 }
                 render();
                 renderRefmodSection();
+                if (typeof renderStoryboard === "function") renderStoryboard();
+                if (typeof refreshPromptPlaceholder === "function") refreshPromptPlaceholder();
                 updateModelName();
                 updateOptimizeButton();
             } catch (e) { console.warn("[UPO] restore failed", e); }
@@ -4097,6 +4319,7 @@ function createPanel(node) {
     render();
     renderStoryboard();
     fetchRefmodCatalog().then(() => renderRefmodSection()).catch(() => {});
+    refreshPromptPlaceholder();
     requestAnimationFrame(() => {
         const w = widget(node, "prompt"); if (w) prompt.value = w.value || "";
         renderRich();

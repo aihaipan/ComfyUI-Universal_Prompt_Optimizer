@@ -94,6 +94,24 @@ Output language: Chinese / English
 
 Prompt format template: video templates + image prompt
 
+### RefMod Support (Character Consistency Boost)
+
+Our optimizer now supports **H3 RefMod** — a fast character-consistency workflow for MiniMax H3.
+In the universal node video generation mode, you can find the reference model video generation, which is specially prepared for H3 RefMod.
+
+**What is RefMod?**
+RefMod creates a latent-space character mod that captures a character's identity from reference images. Each mod behaves like a lightweight, per-character LoRA — but takes **under 1 minute to produce**, compared to hours of LoRA training.
+
+**How it works with this plugin:**
+1. Build a character mod with RefMod.
+2. Load it in the Universal Prompt Optimizer.
+3. Connect the optimizer's output to **H3 RefMod Text Encode** (by the RefMod author).
+4. The optimizer passes both the **optimized prompt** and the **mod payload** downstream.
+
+**Result:** Significantly stronger character identity retention across generated videos, with no manual copying.
+
+> 📌 The RefMod author is actively adding more mod types (e.g., reference audio mods). This plugin will follow up with matching support.
+
 ### Credits
 
 This plugin's core prompt optimization pipeline (`prompt_optimizer.py`) and the base framework of the frontend rich-text editor (`web/universal_prompt_optimizer.js`) are derived from **[goohai](https://github.com/goohai)**'s open-source project **[Goohai-MiniMax-H3_Integration](https://github.com/goohai/Goohai-MiniMax-H3_Integration)**. Sincere thanks to the original author.
@@ -101,6 +119,9 @@ This plugin's core prompt optimization pipeline (`prompt_optimizer.py`) and the 
 The original project is licensed under **GPL-3.0-or-later**; this plugin strictly follows the same license and preserves all original copyright notices.
 
 Special thanks to [AIMixer/ComfyUI_MiniMaxH3_Director](https://github.com/AIMixer/ComfyUI_MiniMaxH3_Director) for providing the official MiniMax H3 Director foundation. The R2V bridge node in this plugin is designed specifically for its `r2v_groups` input.
+
+RefMod Support requires the community plugin [ComfyUI-MiniMaxH3Mod] (https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod) by Luisacaotica. Please install it first.
+Special thanks to [Luisacaotica] (https://github.com/Luisacaotica) for the ComfyUI-MiniMaxH3Mod plugin, which powers our RefMod character consistency feature.
 
 ### License
 
@@ -203,6 +224,24 @@ git clone https://github.com/aihaipan/ComfyUI-Universal_Prompt_Optimizer.git
 
 提示词格式模板：视频模板 + Image Prompt
 
+### RefMod 支持（角色一致性大幅提升）
+
+本插件现已支持 **H3 RefMod** —— 一种面向 MiniMax H3 的快速角色一致性方案。
+在万能节点生视频模式下可以找到参考模型生视频，就是专门为H3 RefMod准备的
+
+**什么是 RefMod？**
+RefMod 通过参考图制作一个潜空间中的角色 mod，把角色的身份特征"刻"进一个轻量文件里。每个 mod 相当于一个专属的角色 LoRA，但**制作时间不到 1 分钟**，远快于传统 LoRA 训练。
+
+**配合本插件怎么用：**
+1. 用 RefMod 制作角色 mod。
+2. 在万能提示词优化节点中加载 mod。
+3. 把万能节点的输出连接到作者提供的 **H3 RefMod Text Encode** 节点。
+4. 万能节点会自动把**优化后的提示词**和 **mod 素材**一并传递到下游。
+
+**效果：** 生成视频时，角色一致性大幅提升，且无需手动复制粘贴。
+
+> 📌 RefMod 作者正在持续更新更多 mod 类型（如参考音频 mod），本插件将同步跟进支持。
+
 ### 致谢 / Credits
 
 本插件的核心提示词优化管线（`prompt_optimizer.py`）以及前端富文本编辑器的基础框架（`web/universal_prompt_optimizer.js`）源自 **[goohai](https://github.com/goohai)** 的开源项目 **[Goohai-MiniMax-H3_Integration](https://github.com/goohai/Goohai-MiniMax-H3_Integration)**，在此表示诚挚感谢。
@@ -212,6 +251,9 @@ git clone https://github.com/aihaipan/ComfyUI-Universal_Prompt_Optimizer.git
 同时感谢 [AIMixer/ComfyUI_MiniMaxH3_Director](https://github.com/AIMixer/ComfyUI_MiniMaxH3_Director) 提供的 MiniMax H3 官方导演台底子，本插件的 `MiniMax H3 R2V 桥接器`专为其 `r2v_groups` `i2v_groups`输入接口设计。
 
 本插件同时支持[ComfyUI-MiniMaxH3-TimelineDirector](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector)插件的`MiniMax H3 有限分段采样`节点，本插件的`MiniMax H3 Finite Segment 桥接器`节点专门为其`finite_plan`输入接口设计。顺便提一下，用`MiniMax H3 有限分段采样`采样器生成mimimax_H3视频提速极大，可自行测试！
+
+RefMod 支持 依赖社区插件 [ComfyUI-MiniMaxH3Mod] (https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod)（作者：[Luisacaotica](https://github.com/Luisacaotica)），请先安装该插件。
+
 
 ### 许可证
 GPL-3.0-or-later
