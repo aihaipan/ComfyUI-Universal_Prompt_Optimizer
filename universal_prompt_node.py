@@ -315,8 +315,8 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
                 io.Custom("GH_SEGMENTS_STR").Output("segments_json"),
                 # prompt_refmod（String 类型）：给 H3 RefMod Text Encode 的 prompt 输入使用
                 # 仅当"生视频 → 参考模型"子 tab 激活时输出内容，其他情况为空字符串。
-                io.String.Output("prompt_refmod"),
                 io.Custom("H3_REF_MODS").Output("refmod_mods"),
+                io.String.Output("prompt_refmod"),
             ],
         )
 
@@ -374,7 +374,7 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
 
         return io.NodeOutput(
             image, media_bundle, prompt_text, conditioning,
-            prompt_text, segments_json, refmod_text, refmod_mods,
+            prompt_text, segments_json, refmod_mods, refmod_text,
         )
 
 

@@ -319,10 +319,10 @@ function createPanel(node) {
         .ghupo-sb-thumb img{width:100%;height:100%;object-fit:cover}
         .ghupo-sb-label{font:8px/1 Arial;color:#6f8291;white-space:nowrap}
         /* ===== 二级 tab（生视频下的参考素材 / 参考模型） ===== */
-        .ghupo-subtabs{display:flex;gap:0;border-bottom:1px solid #334a5d;margin:-7px -7px 0 -7px;border-radius:0 0 6px 6px;overflow:hidden}
-        .ghupo-subtab{flex:1;text-align:center;padding:6px 10px;cursor:pointer;user-select:none;font:11px/1 Arial;font-weight:500;background:rgba(6,19,27,.55);color:rgba(224,242,242,.68);transition:background .15s,color .15s;white-space:nowrap}
-        .ghupo-subtab:hover{background:rgba(6,19,27,.68)}
-        .ghupo-subtab.active{background:#0a6a8a;color:#cdf0f7;font-weight:600}
+        .ghupo-subtabs{display:flex;gap:0;margin:-7px -7px 0 -7px;overflow:hidden;background:#0aa4d6}
+        .ghupo-subtab{flex:1;text-align:center;padding:6px 10px;cursor:pointer;user-select:none;font:11px/1 Arial;font-weight:500;background:rgba(6,19,27,.45);color:rgba(224,242,242,.68);transition:background .15s,color .15s;white-space:nowrap}
+        .ghupo-subtab:hover{background:rgba(6,19,27,.58)}
+        .ghupo-subtab.active{background:#0aa4d6;color:#06131b;font-weight:600}
         .ghupo-subpanel{padding-top:7px}
         .ghupo-subpanel.hidden{display:none}
         /* ===== RefMod 参考模型区 ===== */
@@ -336,9 +336,11 @@ function createPanel(node) {
         .ghupo-refmod-card-name-text::after{content:"▾";margin-left:3px;font-size:9px;color:#8ea3b4;flex-shrink:0;transition:color .12s}
         .ghupo-refmod-card:hover .ghupo-refmod-card-name-text::after{color:#0aa4d6}
         .ghupo-refmod-card-name-select{display:none}
-        .ghupo-refmod-card-copies{position:absolute;top:3px;left:3px;width:22px;height:16px;background:#0f1a24;border:1px solid #2c4255;border-radius:3px;color:#cdf0f7;text-align:center;font:10px/14px Arial;outline:none;-moz-appearance:textfield;padding:0;z-index:3;cursor:ew-resize}
+        .ghupo-refmod-card-copies-group{position:absolute;top:3px;left:3px;display:inline-flex;align-items:center;height:16px;background:#0f1a24;border:1px solid #2c4255;border-radius:3px;padding:0 4px 0 2px;z-index:3}
+        .ghupo-refmod-card-copies-group:hover{border-color:#0aa4d6}
+        .ghupo-refmod-card-copies{width:16px;height:14px;background:transparent;border:0;color:#cdf0f7;text-align:center;font:10px/14px Arial;outline:none;-moz-appearance:textfield;padding:0;cursor:ew-resize}
         .ghupo-refmod-card-copies::-webkit-outer-spin-button,.ghupo-refmod-card-copies::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-        .ghupo-refmod-card-copies:hover{border-color:#0aa4d6;color:#fff}
+        .ghupo-refmod-card-copies-unit{color:#6f8291;font:9px/14px Arial;padding-left:1px}
         .ghupo-refmod-card-strength{position:absolute;top:3px;right:3px;display:inline-flex;align-items:center;height:16px;background:#0f1a24;border:1px solid #2c4255;border-radius:3px;padding:0 1px;z-index:3}
         .ghupo-refmod-card-str-dec,.ghupo-refmod-card-str-inc{width:11px;height:14px;padding:0;border:0;background:transparent;color:#6f8291;font:11px/14px Arial;cursor:pointer;user-select:none}
         .ghupo-refmod-card-str-dec:hover,.ghupo-refmod-card-str-inc:hover{color:#cdf0f7}
@@ -2409,10 +2411,12 @@ function createPanel(node) {
         subTabRefmod.classList.toggle("active", !isMedia);
         mediaSubPanel.classList.toggle("hidden", !isMedia);
         refmodSubPanel.classList.toggle("hidden", isMedia);
-        countRow.style.display = isMedia ? "" : "none";
+        // 两个子 tab 都显示 countRow（内容由 render 决定）
+        countRow.style.display = "";
         // 参考模型子 tab 下隐藏故事板
         if (typeof renderStoryboard === "function") renderStoryboard();
         if (typeof refreshPromptPlaceholder === "function") refreshPromptPlaceholder();
+        if (typeof render === "function") render();
         if (typeof persist === "function") persist();
     }
 
@@ -2641,11 +2645,14 @@ function createPanel(node) {
             card.appendChild(nameSel);
 
             // 左上 copies
+            const cpGroup = make("div"); cpGroup.className = "ghupo-refmod-card-copies-group";
             const cpInput = make("input"); cpInput.type = "number";
             cpInput.className = "ghupo-refmod-card-copies";
             cpInput.min = "1"; cpInput.max = "10"; cpInput.step = "1";
             cpInput.value = String(Number.isFinite(Number(entry?.copies)) ? Math.max(1, Math.min(10, Math.round(Number(entry.copies)))) : 1);
-            cpInput.title = "副本份数（2+ = 同一参考重复注入，增强权重）";
+            cpInput.title = "副本份数：同一 RefMod 重复注入，2+ 可增强参考权重（消耗更多 token）";
+            const cpUnit = make("span", {}, "×"); cpUnit.className = "ghupo-refmod-card-copies-unit";
+            cpGroup.append(cpInput, cpUnit);
             cpInput.onchange = () => {
                 const e2 = media.get(slot); if (!e2) return;
                 let v = parseInt(cpInput.value, 10);
@@ -2657,7 +2664,7 @@ function createPanel(node) {
             };
             cpInput.addEventListener("click", e => e.stopPropagation());
             cpInput.addEventListener("pointerdown", e => e.stopPropagation());
-            card.appendChild(cpInput);
+            card.appendChild(cpGroup);
 
             // 右上 强度
             const strGroup = make("div"); strGroup.className = "ghupo-refmod-card-strength";
@@ -2782,12 +2789,21 @@ function createPanel(node) {
             else if (entry.kind === "video") vidCount++;
             else if (entry.kind === "audio") audCount++;
         }
-        // 图片模式只统计图片；视频模式统计全部
-        bannerCount.textContent = viewMode === "image"
-            ? (isChineseLocale() ? `图片 ${imgCount}/9` : `Image ${imgCount}/9`)
-            : (isChineseLocale()
+        // 参考模型子 tab：显示 Mod 计数
+        if (viewMode === "video" && currentSubView === "refmod") {
+            const modCount = REFMOD_SLOTS.filter(s => media.has(s)).length;
+            bannerCount.textContent = isChineseLocale()
+                ? `已添加 Mod: ${modCount}/8`
+                : `RefMods: ${modCount}/8`;
+        } else if (viewMode === "image") {
+            bannerCount.textContent = isChineseLocale()
+                ? `图片 ${imgCount}/9`
+                : `Image ${imgCount}/9`;
+        } else {
+            bannerCount.textContent = isChineseLocale()
                 ? `图片 ${imgCount}/9 · 视频 ${vidCount}/3 · 音频 ${audCount}/3`
-                : `Image ${imgCount}/9 · Video ${vidCount}/3 · Audio ${audCount}/3`);
+                : `Image ${imgCount}/9 · Video ${vidCount}/3 · Audio ${audCount}/3`;
+        }
 
         mediaGrid.replaceChildren();
         const entries = [...media.entries()]
