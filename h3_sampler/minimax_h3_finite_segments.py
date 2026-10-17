@@ -1276,7 +1276,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 io.Vae.Input("vae"),
                 io.Vae.Input("audio_vae"),
                 FiniteSegmentPlan.Input("finite_plan", display_name="Finite Segment Plan"),
-                io.Combo.Input("sampler_name", options=comfy.samplers.KSampler.SAMPLERS, default="res_multistep"),
+                io.Combo.Input("sampler_name", options=comfy.samplers.KSampler.SAMPLERS, default="euler"),
                 io.Combo.Input("scheduler", options=comfy.samplers.KSampler.SCHEDULERS, default="simple"),
                 io.Int.Input("steps", default=8, min=1, max=100),
                 io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01, tooltip="降噪强度，1.0 为全量生成"),
@@ -1299,6 +1299,11 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
     ):
         from . import inject_internal_nodes
         inject_internal_nodes()  # 动态注入，解决 GraphBuilder 找不到节点的问题
+
+        # 【提前拦截】解析 Plan，如果开启了二采，强制使用 Euler（SelfLift 的硬性要求）
+        _pre_finite = _require_finite_plan(finite_plan)
+        if bool(_pre_finite.get("second_pass")):
+            sampler_name = "euler"
 
         # 内部动态生成 sampler 和 sigmas
         from comfy_extras.nodes_custom_sampler import KSamplerSelect, BasicScheduler
