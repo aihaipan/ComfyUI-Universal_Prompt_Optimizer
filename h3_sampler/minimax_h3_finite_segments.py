@@ -11,6 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import torch
+import comfy.samplers
 import folder_paths
 from comfy.nested_tensor import NestedTensor
 from comfy_api.latest import io
@@ -509,10 +510,10 @@ class MiniMaxH3FiniteSegmentExpansion(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentExpansion",
+            node_id="UniversalH3FiniteSegmentExpansion",
             is_deprecated=True,
             display_name="MiniMax H3 Finite Segment Expansion",
-            category="MiniMax H3/Long Video",
+            category="Universal Prompt/Sampler",
             description=(
                 "Parse prompts, validate segment counts, match per-segment media, and build a finite plan. "
                 "This node performs no model loading, scheduling, or sampling."
@@ -559,7 +560,7 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteLatentContinuation",
+            node_id="UniversalH3FiniteLatentContinuation",
             display_name="MiniMax H3 Finite Latent Continuation (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -633,7 +634,7 @@ class MiniMaxH3LockedAudioSlice(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3LockedAudioSlice",
+            node_id="UniversalH3LockedAudioSlice",
             display_name="MiniMax H3 Locked Audio Slice (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -652,7 +653,7 @@ class MiniMaxH3SilentAudioSlice(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3SilentAudioSlice",
+            node_id="UniversalH3SilentAudioSlice",
             display_name="MiniMax H3 Silent Audio Slice (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -671,7 +672,7 @@ class MiniMaxH3LockAudioLatent(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3LockAudioLatent",
+            node_id="UniversalH3LockAudioLatent",
             display_name="MiniMax H3 Lock Audio Latent (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -729,7 +730,7 @@ class MiniMaxH3LockedAudioMaster(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3LockedAudioMaster",
+            node_id="UniversalH3LockedAudioMaster",
             display_name="MiniMax H3 Locked Audio Master (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -762,7 +763,7 @@ class MiniMaxH3SilentAudioMaster(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3SilentAudioMaster",
+            node_id="UniversalH3SilentAudioMaster",
             display_name="MiniMax H3 Silent Audio Master (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -789,7 +790,7 @@ class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentFinalize",
+            node_id="UniversalH3FiniteSegmentFinalize",
             display_name="MiniMax H3 Finite Segment Finalize (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -858,7 +859,7 @@ class MiniMaxH3FiniteAudioTrimTail(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteAudioTrimTail",
+            node_id="UniversalH3FiniteAudioTrimTail",
             display_name="MiniMax H3 Finite Audio Tail Trim (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -889,7 +890,7 @@ class MiniMaxH3FiniteOutputTrim(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteOutputTrim",
+            node_id="UniversalH3FiniteOutputTrim",
             display_name="MiniMax H3 Finite Output Trim (Internal)",
             category="MiniMax H3/Internal",
             is_dev_only=True,
@@ -930,7 +931,7 @@ class MiniMaxH3FiniteLoopInitialize(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteLoopInitialize",
+            node_id="UniversalH3FiniteLoopInitialize",
             display_name="MiniMax H3 Initialize Segment Loop",
             category="MiniMax H3/Long Video/Loop",
             description=(
@@ -964,7 +965,7 @@ class MiniMaxH3FiniteLoopSegment(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteLoopSegment",
+            node_id="UniversalH3FiniteLoopSegment",
             display_name="MiniMax H3 Select Loop Segment",
             category="MiniMax H3/Long Video/Loop",
             description=(
@@ -1010,7 +1011,7 @@ class MiniMaxH3FiniteLoopPrepare(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteLoopPrepare",
+            node_id="UniversalH3FiniteLoopPrepare",
             display_name="MiniMax H3 Prepare Loop Segment",
             category="MiniMax H3/Long Video/Loop",
             description=(
@@ -1076,14 +1077,14 @@ class MiniMaxH3FiniteLoopPrepare(io.ComfyNode):
                     audio_vae=audio_vae,
                 )
         continuation = graph.node(
-            "MiniMaxH3FiniteLatentContinuation",
+            "UniversalH3FiniteLatentContinuation",
             id="loop_segment_continuation",
             **continuation_inputs,
         )
         sampling_latent = continuation.out(1)
         if fixed_audio:
             source_audio = graph.node(
-                "MiniMaxH3LockedAudioSlice" if locked_audio is not None else "MiniMaxH3SilentAudioSlice",
+                "UniversalH3LockedAudioSlice" if locked_audio is not None else "UniversalH3SilentAudioSlice",
                 id="loop_segment_audio",
                 plan=segment_plan,
             )
@@ -1094,7 +1095,7 @@ class MiniMaxH3FiniteLoopPrepare(io.ComfyNode):
                 vae=audio_vae,
             )
             sampling_latent = graph.node(
-                "MiniMaxH3LockAudioLatent",
+                "UniversalH3LockAudioLatent",
                 id="loop_segment_audio_lock",
                 target_latent=sampling_latent,
                 audio_latent=encoded_audio.out(0),
@@ -1111,7 +1112,7 @@ class MiniMaxH3FiniteLoopAccumulate(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteLoopAccumulate",
+            node_id="UniversalH3FiniteLoopAccumulate",
             display_name="MiniMax H3 Accumulate Loop Segment",
             category="MiniMax H3/Long Video/Loop",
             description=(
@@ -1198,7 +1199,7 @@ class MiniMaxH3FiniteLoopOutput(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteLoopOutput",
+            node_id="UniversalH3FiniteLoopOutput",
             display_name="MiniMax H3 Finish Segment Loop",
             category="MiniMax H3/Long Video/Loop",
             description=(
@@ -1261,9 +1262,9 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteSegmentSampler",
-            display_name="MiniMax H3 Finite Segment Sampler",
-            category="MiniMax H3/Long Video",
+            node_id="UniversalH3SegmentSampler",
+            display_name="Universal MiniMax_H3 分段采样器",
+            category="Universal Prompt/Sampler",
             description=(
                 "Expand a finite plan into a standard acyclic sampling graph. Sampler and scheduler remain "
                 "external; no Loop, Loop Variable, or Close Loop nodes are required."
@@ -1275,8 +1276,10 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 io.Vae.Input("vae"),
                 io.Vae.Input("audio_vae"),
                 FiniteSegmentPlan.Input("finite_plan", display_name="Finite Segment Plan"),
-                io.Sampler.Input("sampler"),
-                io.Sigmas.Input("sigmas"),
+                io.Combo.Input("sampler_name", options=comfy.samplers.KSampler.SAMPLERS, default="res_multistep"),
+                io.Combo.Input("scheduler", options=comfy.samplers.KSampler.SCHEDULERS, default="simple"),
+                io.Int.Input("steps", default=8, min=1, max=100),
+                io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01, tooltip="降噪强度，1.0 为全量生成"),
                 io.Int.Input("seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF, control_after_generate=True),
                 io.Boolean.Input("continue_audio_latent", display_name="Continue Audio Latent", default=True),
                 io.Combo.Input("ref_image_size", options=["match", "max"], default="match"),
@@ -1291,9 +1294,16 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
 
     @classmethod
     def execute(
-        cls, model, clip, vae, audio_vae, finite_plan, sampler, sigmas, seed,
+        cls, model, clip, vae, audio_vae, finite_plan, sampler_name, scheduler, steps, denoise, seed,
         continue_audio_latent, ref_image_size="match",
     ):
+        from . import inject_internal_nodes
+        inject_internal_nodes()  # 动态注入，解决 GraphBuilder 找不到节点的问题
+
+        # 内部动态生成 sampler 和 sigmas
+        from comfy_extras.nodes_custom_sampler import KSamplerSelect, BasicScheduler
+        sampler = KSamplerSelect().get_sampler(sampler_name)[0]
+        sigmas = BasicScheduler().get_sigmas(model, scheduler, steps, denoise)[0]
         finite = _require_finite_plan(finite_plan)
         graph = GraphBuilder()
         previous_latent = None
@@ -1326,7 +1336,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
             overlap = int(finite.get("segment_overlaps", [overlap] * finite["segment_count"])[index])
             segment_plan = _finite_plan_for_segment(finite, number)
             encoder = graph.node(
-                "MiniMaxH3TimelineEncoder", id=f"encode_{number}",
+                "UniversalH3TimelineEncoder", id=f"encode_{number}",
                 clip=clip, vae=vae, audio_vae=audio_vae,
                 plan=segment_plan,
                 prompt=prompt, ref_image_size=ref_image_size,
@@ -1342,13 +1352,13 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 if overlap == 1:
                     continuation_inputs.update(previous_images=previous_images, vae=vae, audio_vae=audio_vae)
             continuation = graph.node(
-                "MiniMaxH3FiniteLatentContinuation", id=f"continue_{number}",
+                "UniversalH3FiniteLatentContinuation", id=f"continue_{number}",
                 **continuation_inputs,
             )
             sampling_latent = continuation.out(1)
             if fixed_audio:
                 source_audio = graph.node(
-                    "MiniMaxH3LockedAudioSlice" if locked_audio is not None else "MiniMaxH3SilentAudioSlice",
+                    "UniversalH3LockedAudioSlice" if locked_audio is not None else "UniversalH3SilentAudioSlice",
                     id=(f"locked_audio_slice_{number}" if locked_audio is not None else f"silent_audio_slice_{number}"),
                     plan=segment_plan,
                 )
@@ -1357,12 +1367,12 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                     audio=source_audio.out(0), vae=audio_vae,
                 )
                 sampling_latent = graph.node(
-                    "MiniMaxH3LockAudioLatent", id=f"fixed_audio_latent_{number}",
+                    "UniversalH3LockAudioLatent", id=f"fixed_audio_latent_{number}",
                     target_latent=sampling_latent, audio_latent=encoded_audio.out(0),
                 ).out(0)
             if second_pass:
                 sampled = graph.node(
-                    "MiniMaxH3TimelineSelfLiftSampler", id=f"sample_{number}",
+                    "UniversalH3TimelineSelfLiftSampler", id=f"sample_{number}",
                     model=continuation.out(3), positive=continuation.out(0),
                     negative=continuation.out(0), vae=vae,
                     latent_image=sampling_latent, sampler=sampler, sigmas=sigmas,
@@ -1389,7 +1399,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
             if merged_images is not None:
                 finalize_inputs["accumulated_images"] = merged_images
             finalized = graph.node(
-                "MiniMaxH3FiniteSegmentFinalize", id=f"finalize_{number}",
+                "UniversalH3FiniteSegmentFinalize", id=f"finalize_{number}",
                 sampled_latent=sampled.out(0), images=images.out(0), audio=audio.out(0),
                 iteration=index, overlap_frames=overlap,
                 trim_audio_head=not soft_audio,
@@ -1402,7 +1412,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 previous_audio_for_join = merged_audio
                 if soft_audio and overlap > 0:
                     previous_audio_for_join = graph.node(
-                        "MiniMaxH3FiniteAudioTrimTail", id=f"trim_audio_tail_{number}",
+                        "UniversalH3FiniteAudioTrimTail", id=f"trim_audio_tail_{number}",
                         audio=merged_audio, overlap_frames=overlap,
                     ).out(0)
                 audio_join = graph.node(
@@ -1417,7 +1427,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
         target_output_frames = int(finite.get("target_output_frames") or 0)
         if target_output_frames > 0:
             output_trim = graph.node(
-                "MiniMaxH3FiniteOutputTrim", id="trim_auto_segment_output",
+                "UniversalH3FiniteOutputTrim", id="trim_auto_segment_output",
                 images=merged_images, audio=merged_audio,
                 output_frames=target_output_frames,
             )
@@ -1425,12 +1435,12 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
 
         if locked_audio is not None:
             merged_audio = graph.node(
-                "MiniMaxH3LockedAudioMaster", id="locked_audio_master",
+                "UniversalH3LockedAudioMaster", id="locked_audio_master",
                 finite_plan=finite,
             ).out(0)
         elif muted_video_audio:
             merged_audio = graph.node(
-                "MiniMaxH3SilentAudioMaster", id="silent_audio_master",
+                "UniversalH3SilentAudioMaster", id="silent_audio_master",
                 finite_plan=finite,
             ).out(0)
 

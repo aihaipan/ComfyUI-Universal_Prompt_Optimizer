@@ -1076,7 +1076,10 @@ function createPanel(node) {
         while ((m = TAG_RE.exec(source))) {
             const rawWord = String(m[1] || "");
             // RefMod 标签首字母大写（Video/Picture/Audio），原生标签小写或中文
-            const isRefmod = /^[A-Za-z]/.test(rawWord) && rawWord[0] === rawWord[0].toUpperCase() && rawWord[0] !== rawWord[0].toLowerCase();
+            let isRefmod = /^[A-Za-z]/.test(rawWord) && rawWord[0] === rawWord[0].toUpperCase() && rawWord[0] !== rawWord[0].toLowerCase();
+            if (!(viewMode === "video" && currentSubView === "refmod")) {
+                isRefmod = false; // 只要不在参考模型子tab下，强制降级为原生小写标签
+            }
             const lowerType = rawWord.toLowerCase();
             const baseType = ["picture", "image", "图片", "图像", "图"].includes(lowerType) ? "picture"
                 : ["video", "视频"].includes(lowerType) ? "video" : "audio";
