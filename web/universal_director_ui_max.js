@@ -401,7 +401,8 @@ function createPanel(node) {
     const tabsRow = make("div"); tabsRow.className = "ghupo-tabs";
     const videoTab = make("div", {}, t("生视频提示词优化")); videoTab.className = "ghupo-tab active"; videoTab.dataset.mode = "video";
     const imageTab = make("div", {}, t("生图提示词优化")); imageTab.className = "ghupo-tab"; imageTab.dataset.mode = "image";
-    tabsRow.append(videoTab, imageTab);
+    imageTab.style.display = "none"; // 【Max专属】隐藏生图Tab
+    tabsRow.append(videoTab);
     const countRow = make("div"); countRow.className = "ghupo-banner-count-row";
     const bannerCount = make("span", {}, "图片 0/9 · 视频 0/3 · 音频 0/3"); bannerCount.className = "ghupo-banner-count";
     countRow.append(bannerCount);
@@ -492,8 +493,20 @@ function createPanel(node) {
     audioRow.append(make("span", {}, "音频模式"), audioSelect);
 
     // 第二行：二采设置
+    const overlapInput = make("input"); 
+    overlapInput.type = "text"; 
+    overlapInput.value = ""; 
+    overlapInput.placeholder = "如 [0, 24, 24]";
+    overlapInput.className = "ghupo-duration-input";
+    overlapInput.style.flex = "1";
+    overlapInput.title = "段间重叠帧数（0 为硬切）。留空则默认 24 帧";
+
+    const overlapRow = make("div");
+    overlapRow.style.cssText = "display:flex;align-items:center;gap:8px;width:100%;margin-top:4px;";
+    overlapRow.append(make("span", {}, "段间重叠"), overlapInput);
+
     const spRow = make("div");
-    spRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+    spRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:4px;";
     
     const spToggle = make("label");
     spToggle.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-weight:bold;color:#0aa4d6;";
@@ -505,7 +518,7 @@ function createPanel(node) {
 
     spRow.append(spToggle, spModelSelect, spStepsWrap);
 
-    dirAdvancedPanel.append(audioRow, spRow);
+    dirAdvancedPanel.append(audioRow, overlapRow, spRow);
 
     // 获取二采模型列表
     fetch("/minimax-bridge/upscalers").then(r => r.json()).then(data => {
@@ -770,6 +783,7 @@ function createPanel(node) {
     const prompt = make("div");
     prompt.className = "ghupo-prompt ghpO-prompt-empty";
     prompt.contentEditable = "true";
+    prompt.style.minHeight = "150px"; // 【防挤压】保证提示词输入框至少 150px 高
     prompt.spellcheck = false;
     prompt.tabIndex = 0;
     prompt.setAttribute("role", "textbox");
@@ -813,6 +827,8 @@ function createPanel(node) {
 
     const promptWrap = make("div");
     promptWrap.className = "ghupo-prompt-wrap";
+    promptWrap.style.flex = "1 1 auto";
+    promptWrap.style.minHeight = "150px"; // 兜底防挤压
     promptWrap.appendChild(prompt);
     root.appendChild(promptWrap);
 
@@ -891,8 +907,11 @@ function createPanel(node) {
     const domWidget = node.addDOMWidget("gh_upo_panel", "gh_upo_panel", root, { serialize: false, hideOnZoom: false });
     domWidget.options = domWidget.options || {};
     domWidget.options.serialize = false;
-    domWidget.options.getMinHeight = () => 0;
-    domWidget.options.getHeight = () => "100%";
+    //domWidget.options.getMinHeight = () => 0;
+    domWidget.options.getMinHeight = () => {
+    // 大约填一个合适的基础高度，剩下的靠节点本身的 size 来调整
+    return 1300; 
+};
     domWidget.options.minNodeSize = [WIDTH, 0];
 
     // Hide native widgets
@@ -1019,6 +1038,8 @@ function createPanel(node) {
             dirSecondPass: spCheck.checked,
             dirSecondPassModel: spModelSelect.value,
             dirSecondPassSteps: parseInt(spStepsInput.value, 10) || 2,
+            dirAudioMode: audioSelect.value,
+            dirBridgeOverlaps: overlapInput.value,
         });
         node.properties = node.properties || {};
         node.properties[stateKey] = value;
@@ -2623,7 +2644,7 @@ function createPanel(node) {
         const before = text.slice(lookbackStart, caret);
         // 匹配：v/p/a/模型 + 数字，光标正好在数字后
         // 边界：前面不能是字母数字汉字（避免 hello1 触发）
-        const m = before.match(/(^|[^\w\u4e00-\u9fff])(v|p|a|模型)\s*(\d+)$/i);
+        const m = before.match(/(^|[^a-zA-Z0-9_])(v|p|a|模型)\s*(\d+)$/i);
         if (!m) return false;
         const kindChar = String(m[2]).toLowerCase();
         const num = parseInt(m[3], 10);
@@ -3346,7 +3367,7 @@ function createPanel(node) {
 
         // 4. UI 骨架
         videoTab.classList.toggle("active", mode === "video");
-        imageTab.classList.toggle("active", mode === "image");
+        if (imageTab) imageTab.classList.toggle("active", mode === "image");
         if (mode === "image") {
             subTabsRow.style.display = "none";
             countRow.style.display = "";
@@ -3374,7 +3395,7 @@ function createPanel(node) {
     templateSelect.style.display = (viewMode === "image") ? "none" : "";
     rebuildTemplateSelect();
     videoTab.onclick = () => setViewMode("video");
-    imageTab.onclick = () => setViewMode("image");
+    // 【Max专属】 imageTab.onclick = () => setViewMode("image");
 
     // ---- 参考素材读取：把上传的图片/视频转成后端能看懂的 base64 ----
     // 与后端 prompt_optimizer._user_parts 的 image_url 结构对应。
@@ -4235,7 +4256,7 @@ function createPanel(node) {
                 if (restored.viewMode === "video" || restored.viewMode === "image") {
                     viewMode = restored.viewMode;
                     videoTab.classList.toggle("active", viewMode === "video");
-                    imageTab.classList.toggle("active", viewMode === "image");
+                    if (imageTab) imageTab.classList.toggle("active", viewMode === "image");
                     subTabsRow.style.display = (viewMode === "image") ? "none" : "";
                     if (viewMode === "image") {
                         mediaSubPanel.classList.remove("hidden");
@@ -4322,6 +4343,7 @@ function createPanel(node) {
                 if (restored.dirSecondPassModel) spModelSelect.value = restored.dirSecondPassModel;
                 if (restored.dirSecondPassSteps) spStepsInput.value = restored.dirSecondPassSteps;
                 if (restored.dirAudioMode) audioSelect.value = restored.dirAudioMode;
+                if (restored.dirBridgeOverlaps !== undefined) overlapInput.value = restored.dirBridgeOverlaps;
                 if (Number.isFinite(restored.height)) {
                     userHeight = restored.height;
                     const currentWidth = this.size?.[0] || WIDTH;
@@ -4460,50 +4482,91 @@ function createPanel(node) {
 }
 
 app.registerExtension({
-    name: "goohai.universal_director_ui_max", // 【关键修复】千万不能跟原版重名
-    // 【L2-d】hook app.queuePrompt：运行前自动优化
+    name: "goohai.universal_director_ui_max",
     async setup() {
-        // 【极速优化】Max 导演台不需要运行前偷偷调 LLM，直接秒过，省去几十秒网络延迟！
+        // 保留你原有的 setup 逻辑...
         return;
-        const originalQueuePrompt = app.queuePrompt.bind(app);
-        app.queuePrompt = async function (...args) {
-            // 防重入
-            if (window.__ghupoAutoOptRunning) return originalQueuePrompt(...args);
-            // 扫描画布上所有万能节点
-            const nodes = (app.graph?._nodes || []).filter(
-                n => n.type === NODE && typeof n.__ghupoAutoOptimizeAll === "function"
-            );
-            // 过滤：mode === 0（正常，非 bypass/mute），且 auto_optimize 开启
-            const targets = nodes.filter(n => {
-                const mode = n.mode;
-                // ComfyUI: 0=ALWAYS（正常），2=NEVER（mute），4=BYPASS
-                if (mode !== undefined && mode !== 0) return false;
-                return n.__ghupoAutoOptimize();
-            });
-            if (!targets.length) return originalQueuePrompt(...args);
-            window.__ghupoAutoOptRunning = true;
-            try {
-                for (const n of targets) {
-                    try {
-                        const result = await n.__ghupoAutoOptimizeAll();
-                        console.log(`[GH] auto-optimize: ${result.succeeded}/${result.total} OK`, result.failed);
-                    } catch (err) {
-                        console.error("[GH] auto-optimize failed:", err);
-                    }
-                }
-            } finally {
-                window.__ghupoAutoOptRunning = false;
-            }
-            return originalQueuePrompt(...args);
-        };
     },
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== NODE) return;
-        const prev = nodeType.prototype.onNodeCreated;
-        nodeType.prototype.onNodeCreated = function() {
-            const r = prev?.apply(this, arguments);
+
+        // =========================================================
+        // 补丁 1：在 onNodeCreated 拦截原生 VIDEO 预览控件
+        // =========================================================
+        const prevOnNodeCreated = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function () {
+            const r = prevOnNodeCreated?.apply(this, arguments);
+            
             if (!this._ghUpoReady && createPanel(this)) this._ghUpoReady = true;
+
+            // 劫持 addWidget，如果 ComfyUI 试图添加视频/图片预览控件，直接拦截
+            if (!this._origAddWidget) {
+                this._origAddWidget = this.addWidget;
+                this.addWidget = function (type, name, value, callback, options) {
+                    if (name === "video" || name === "image" || name === "images" || name === "preview" || type === "video" || type === "image") {
+                        return null; // 拒绝添加预览 widget
+                    }
+                    return this._origAddWidget.apply(this, arguments);
+                };
+            }
+
+            // 延迟清理可能已经被加进去的预览控件
+            setTimeout(() => {
+                if (!this.widgets) return;
+                for (let i = this.widgets.length - 1; i >= 0; i--) {
+                    const w = this.widgets[i];
+                    if (w && (w.name === "video" || w.name === "image" || w.name === "preview")) {
+                        w.hidden = true;
+                        w.computeSize = () => [0, -4];
+                        if (w.element && w.element.parentNode) {
+                            w.element.parentNode.removeChild(w.element);
+                        }
+                        this.widgets.splice(i, 1);
+                    }
+                }
+                this.setSizeForImage = () => {};
+                this.setDirtyCanvas?.(true, true);
+            }, 100);
+
             return r;
+        };
+
+        // =========================================================
+        // 补丁 2：在 onExecuted 中彻底清空预览数据，阻止尺寸自适应
+        // =========================================================
+        const prevOnExecuted = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function (message) {
+            prevOnExecuted?.apply(this, arguments);
+            
+            // 阻断 ComfyUI 渲染预览
+            this.images = null;
+            this.imgs = null;
+            this.video = null;
+            this.videos = null;
+            this.animatedImages = null;
+            this.setSizeForImage = () => {};
+
+            // 如果此时依然有被加进来的预览 widget，再清理一次
+            if (this.widgets) {
+                for (let i = this.widgets.length - 1; i >= 0; i--) {
+                    const w = this.widgets[i];
+                    if (w && (w.name === "video" || w.name === "image" || w.name === "preview")) {
+                        w.hidden = true;
+                        w.computeSize = () => [0, -4];
+                        if (w.element && w.element.parentNode) {
+                            w.element.parentNode.removeChild(w.element);
+                        }
+                        this.widgets.splice(i, 1);
+                    }
+                }
+            }
+
+            // 重新适应高度
+            if (this.computeSize) {
+                const newSize = this.computeSize();
+                if (newSize) this.setSize([this.size[0], newSize[1]]);
+            }
+            this.setDirtyCanvas?.(true, true);
         };
     },
 });

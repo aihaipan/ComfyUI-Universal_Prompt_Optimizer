@@ -39,8 +39,6 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
                 io.Int.Input("second_pass_high_steps", default=2, min=1, max=10, optional=True),
             ],
             outputs=[
-                io.Image.Output("video_frames"),
-                io.Audio.Output("audio"),
                 io.Custom("VIDEO").Output("video"),
             ],
         )
@@ -50,7 +48,7 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
                 director_config="", width=864, height=480, fps=24, steps=8, seed=0,
                 second_pass=False, second_pass_model="", second_pass_high_steps=2, 
                 audio_mode="参考音色", bridge_overlaps="", save_video=False, 
-                filename_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director"):
+                filename_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director", refmod_mods=None):
         
         # 【防御】检查所有必须的模型输入
         if vae is None or clip is None or model is None or audio_vae is None:
@@ -102,10 +100,12 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
             continue_audio_latent=True, ref_image_size="match",
             fps=fps, 
             save_video=save_video, 
-            video_prefix=filename_prefix
+            video_prefix=filename_prefix,
+            refmod_mods=refmod_mods
         )
 
-        return io.NodeOutput(out.result[0], out.result[1], out.result[4], expand=out.expand)
+                # 【对齐底层】取底层传来的第 5 个值（Video）
+        return io.NodeOutput(out.result[4], expand=out.expand)
 
 
 class UniversalMiniMax_H3DirectorExtension(ComfyExtension):

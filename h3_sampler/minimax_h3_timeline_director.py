@@ -1854,3 +1854,73 @@ class MiniMaxH3TimelineDirector(io.ComfyNode):
             plan, clip, vae, audio_vae, prompt, ref_image_size
         )
         return io.NodeOutput(conditioning, latent, video_audio, standalone_audio)
+
+class UniversalH3TimelineEncoderWithRefMod(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UniversalH3TimelineEncoderWithRefMod",
+            display_name="Universal H3 Timeline Encoder (RefMod)",
+            category="Universal",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.Vae.Input("vae"),
+                io.Vae.Input("audio_vae"),
+                TimelinePlan.Input("plan"),
+                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
+                io.Combo.Input("ref_image_size", options=["match", "max"], default="match"),
+                io.Custom("H3_REF_MODS").Input("refmod_mods", optional=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Latent.Output(),
+                io.Audio.Output(display_name="Merged Video Audio"),
+                io.Audio.Output(display_name="Merged Standalone Audio"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, clip, vae, audio_vae, plan, prompt, ref_image_size="match", refmod_mods=None):
+        import math
+        
+        # 先调用原版获取基础数据
+        conditioning, latent, video_audio, standalone_audio = _encode_timeline_plan(
+            plan, clip, vae, audio_vae, prompt, ref_image_size
+        )
+        
+        if refmod_mods:
+            items, blocks = [], []
+            for mod, strength in refmod_mods:
+                block = mod.ref_block(strength)
+                block["refmod"] = True
+                kind = block["kind"]
+                item = {"type": kind}
+                if kind != "audio":
+                    pixels = vae.decode(block["latent"])
+                    if pixels.ndim == 5 and pixels.shape[0] == 1:
+                        pixels = pixels[0]
+                    if kind == "image":
+                        item["data"] = pixels[:1].cpu().clone()
+                    else:
+                        times = [i / 2 for i in range(math.ceil(pixels.shape[0] * 2 / 24.0))]
+                        indices = [min(round(t * 24.0), pixels.shape[0] - 1) for t in times]
+                        item["data"] = pixels[indices].cpu()
+                        item["timestamps"] = times
+                items.append(item)
+                blocks.append(block)
+                
+            # 重新编码文本，把 RefMod 喂给文本编码器
+            tokens = clip.tokenize(prompt, minimax_ref_items=items)
+            new_cond = clip.encode_from_tokens_scheduled(tokens)
+            
+            # 把 RefMod 的 blocks 合并进去
+            for i, (embedding, metadata) in enumerate(new_cond):
+                if i < len(conditioning):
+                    old_meta = conditioning[i][1]
+                    if "minimax_refs" in old_meta:
+                        metadata["minimax_refs"] = old_meta["minimax_refs"] + blocks
+                    else:
+                        metadata["minimax_refs"] = blocks
+            conditioning = new_cond
+
+        return io.NodeOutput(conditioning, latent, video_audio, standalone_audio)

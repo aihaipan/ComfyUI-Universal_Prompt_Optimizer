@@ -1,6 +1,7 @@
 """Plugin-owned finite MiniMax H3 long-video planning and sampling."""
 
 from __future__ import annotations
+import logging
 import os
 import gc
 
@@ -1219,8 +1220,7 @@ class MiniMaxH3FiniteLoopOutput(io.ComfyNode):
                 io.Latent.Output(display_name="Last Sampled Latent"),
                 io.Image.Output(display_name="Merged Frames"),
                 io.Audio.Output(display_name="Merged Audio"),
-                io.String.Output(display_name="Loop Status"),
-                io.Custom("VIDEO").Output(display_name="Video"),
+                io.String.Output(display_name="Sampling Status"),
             ],
         )
 
@@ -1325,7 +1325,8 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
         second_pass=False, second_pass_model="", second_pass_high_steps=2, bridge_overlaps="",
         sampler_name="euler", scheduler="simple", steps=8, denoise=1.0, seed=0,
         continue_audio_latent=True, ref_image_size="match",
-        fps=24, save_video=False, video_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director"
+        fps=24, save_video=False, video_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director",
+        refmod_mods=None
     ):
         from . import inject_internal_nodes
         inject_internal_nodes()  # 动态注入，解决 GraphBuilder 找不到节点的问题
@@ -1405,10 +1406,11 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
             overlap = int(finite.get("segment_overlaps", [overlap] * finite["segment_count"])[index])
             segment_plan = _finite_plan_for_segment(finite, number)
             encoder = graph.node(
-                "UniversalH3TimelineEncoder", id=f"encode_{number}",
+                "UniversalH3TimelineEncoderWithRefMod", id=f"encode_{number}",
                 clip=clip, vae=vae, audio_vae=audio_vae,
                 plan=segment_plan,
                 prompt=prompt, ref_image_size=ref_image_size,
+                refmod_mods=refmod_mods
             )
             continuation_inputs = {
                 "positive": encoder.out(0), "target_latent": encoder.out(1),
@@ -1569,6 +1571,9 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 f"duration ({target_output_frames} frames)."
             )
 
+
+
+
         # 无条件生成 Video 对象（供 Max 导演台透传给原生预览节点）
         video_node = graph.node(
             "CreateVideo", 
@@ -1578,7 +1583,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
             fps=fps
         )
 
-
         return io.NodeOutput(
             last_sampled, merged_images, merged_audio, status, video_node.out(0), expand=graph.finalize()
         )
+    

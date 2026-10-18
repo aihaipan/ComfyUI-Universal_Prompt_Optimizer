@@ -307,8 +307,6 @@ class UniversalDirectorUI(io.ComfyNode):
                 io.String.Input("segments_json", default="", optional=True, extra_dict={"hidden": True}),
             ],
             outputs=[
-                io.Image.Output("video_frames"),
-                io.Audio.Output("audio"),
                 io.Custom("VIDEO").Output("video"),
             ],
         )                
@@ -322,7 +320,9 @@ class UniversalDirectorUI(io.ComfyNode):
         _steps = 8
         _sp, _sp_model, _sp_steps = False, "", 2
         _audio_mode = "参考音色"
-        _save_video = False
+        _save_prefix = "Universal_MiniMax_H3director/Universal_MiniMax_H3director"
+        _bridge_overlaps = ""
+        _save_video = False  # 【修复】给个初始值，避免未定义报错
         try:
             if gh_state_json:
                 st = json.loads(gh_state_json)
@@ -333,9 +333,9 @@ class UniversalDirectorUI(io.ComfyNode):
                 if "dirSecondPassModel" in st: _sp_model = str(st["dirSecondPassModel"])
                 if "dirSecondPassSteps" in st: _sp_steps = int(st["dirSecondPassSteps"])
                 if "dirAudioMode" in st: _audio_mode = str(st["dirAudioMode"])
-                if "dirSaveVideo" in st: _save_video = bool(st["dirSaveVideo"])
+                if "dirSavePrefix" in st: _save_prefix = str(st["dirSavePrefix"])
+                if "dirBridgeOverlaps" in st: _bridge_overlaps = str(st["dirBridgeOverlaps"])
         except Exception as e:
-            import logging
             logging.warning(f"解析导演参数失败: {e}")
 
         # 2. 极简媒体打包（只提取路径，不加载图片 Tensor，极速！）
@@ -350,6 +350,23 @@ class UniversalDirectorUI(io.ComfyNode):
             raise ValueError("【导演台 Max】请连接 model, vae, audio_vae 才能出片！")
 
         from .universal_director_node import UniversalMiniMax_H3Director
+        
+        # 重新计算 RefMods（复用旧逻辑）
+
+        refmod_mods = None
+        try:
+            state = json.loads(gh_state_json) if gh_state_json else {}
+            is_refmod_view = (state.get("viewMode") == "video" and state.get("currentSubView") == "refmod")
+            if is_refmod_view:
+                from .universal_prompt_node import _find_refmod_loader, _build_refmod_load_kwargs
+                loader_cls = _find_refmod_loader()
+                if loader_cls:
+                    kwargs = _build_refmod_load_kwargs(gh_state_json)
+                    refmod_mods = loader_cls().load(**kwargs)[0]
+                    logging.info(f"【Max导演台】成功加载了 {len(refmod_mods)} 个 RefMod: {[m[0].name for m in refmod_mods]}")
+        except Exception as e:
+            logging.warning(f"提取 RefMod 失败: {e}")
+
         out = UniversalMiniMax_H3Director.execute(
             model=model, clip=clip, vae=vae, audio_vae=audio_vae,
             media_bundle=media_bundle, prompt_finite=str(prompt or ""), segments_json=segments_json,
@@ -358,12 +375,14 @@ class UniversalDirectorUI(io.ComfyNode):
             second_pass_model=_sp_model, 
             second_pass_high_steps=_sp_steps,
             save_video=_save_video,
-            fps=24
+            fps=24,
+            filename_prefix=_save_prefix,
+            bridge_overlaps=_bridge_overlaps,
+            refmod_mods=refmod_mods  # 【补上】传给中转层
         )
 
-        # 4. 返回视频帧、音频、以及原生 Video 对象
-        return io.NodeOutput(out.result[0], out.result[1], out.result[2], expand=out.expand)
-
+        # 4. 返回原生 Video 对象
+        return io.NodeOutput(out.result[0], expand=out.expand)
 
 class UniversalDirectorUIExtension(ComfyExtension):
     async def get_node_list(self):
