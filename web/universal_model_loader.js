@@ -127,7 +127,9 @@ app.registerExtension({
 
                 const del = document.createElement("button");
                 del.innerText = "×";
-                del.style.cssText = "background:#ff5b5b;border:0;color:#fff;border-radius:3px;width:22px;height:22px;cursor:pointer;flex-shrink:0;margin-left:auto;";
+                del.style.cssText = "background:#3a5364;border:1px solid #2c4255;color:#dce7ee;border-radius:3px;width:22px;height:22px;cursor:pointer;flex-shrink:0;margin-left:auto;transition:background 0.2s;";
+                del.onmouseenter = () => { del.style.background = "#5a3a3a"; del.style.color = "#fff"; };
+                del.onmouseleave = () => { del.style.background = "#3a5364"; del.style.color = "#dce7ee"; };
                 del.onclick = () => { state[key].splice(i, 1); saveState(); render(); };
                 row.appendChild(del);
 

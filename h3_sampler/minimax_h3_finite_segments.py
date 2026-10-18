@@ -11,6 +11,14 @@ from functools import lru_cache
 from pathlib import Path
 
 import torch
+import folder_paths
+
+def _get_upscalers():
+    try:
+        names = folder_paths.get_filename_list("latent_upscale_models")
+        return [n for n in names if "minimax_h3" in n.lower() and "latent" in n.lower()]
+    except Exception:
+        return ["(无可用模型)"]
 import comfy.samplers
 import folder_paths
 from comfy.nested_tensor import NestedTensor
@@ -1212,6 +1220,7 @@ class MiniMaxH3FiniteLoopOutput(io.ComfyNode):
                 io.Image.Output(display_name="Merged Frames"),
                 io.Audio.Output(display_name="Merged Audio"),
                 io.String.Output(display_name="Loop Status"),
+                io.Custom("VIDEO").Output(display_name="Video"),
             ],
         )
 
@@ -1275,7 +1284,22 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 io.Clip.Input("clip"),
                 io.Vae.Input("vae"),
                 io.Vae.Input("audio_vae"),
-                FiniteSegmentPlan.Input("finite_plan", display_name="Finite Segment Plan"),
+                FiniteSegmentPlan.Input("finite_plan", optional=True, display_name="Finite Segment Plan (可不接)"),
+                # 【吃桥接器】万能节点直连接口
+                io.Custom("GH_MEDIA_BUNDLE").Input("media_bundle", optional=True),
+                io.Custom("GH_PROMPT_STR").Input("prompt_finite", optional=True),
+                io.Custom("GH_SEGMENTS_STR").Input("segments_json", optional=True),
+                # 【吃桥接器】桥接器的参数面板
+                io.Float.Input("duration_sec", default=5.0, min=1.0, max=120.0),
+                io.Int.Input("width", default=864, min=64, max=4096, step=32),
+                io.Int.Input("height", default=480, min=64, max=4096, step=32),
+                io.Combo.Input("audio_mode", options=["参考音色", "强制使用音频1"], default="参考音色"),
+                # 【二采参数搬家】
+                io.Boolean.Input("second_pass", default=False, label_on="开启二采", label_off="关闭二采"),
+                io.Combo.Input("second_pass_model", options=_get_upscalers(), default=""),
+                io.Int.Input("second_pass_high_steps", default=2, min=1, max=10),
+                io.String.Input("bridge_overlaps", default="", optional=True),
+                
                 io.Combo.Input("sampler_name", options=comfy.samplers.KSampler.SAMPLERS, default="euler"),
                 io.Combo.Input("scheduler", options=comfy.samplers.KSampler.SCHEDULERS, default="simple"),
                 io.Int.Input("steps", default=8, min=1, max=100),
@@ -1289,16 +1313,56 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 io.Image.Output(display_name="Merged Frames"),
                 io.Audio.Output(display_name="Merged Audio"),
                 io.String.Output(display_name="Sampling Status"),
+                io.Custom("VIDEO").Output(display_name="Video"),
             ],
         )
 
     @classmethod
     def execute(
-        cls, model, clip, vae, audio_vae, finite_plan, sampler_name, scheduler, steps, denoise, seed,
-        continue_audio_latent, ref_image_size="match",
+        cls, model, clip, vae, audio_vae, 
+        finite_plan=None, media_bundle=None, prompt_finite="", segments_json="", 
+        duration_sec=5.0, width=864, height=480, audio_mode="参考音色",
+        second_pass=False, second_pass_model="", second_pass_high_steps=2, bridge_overlaps="",
+        sampler_name="euler", scheduler="simple", steps=8, denoise=1.0, seed=0,
+        continue_audio_latent=True, ref_image_size="match",
+        fps=24, save_video=False, video_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director"
     ):
         from . import inject_internal_nodes
         inject_internal_nodes()  # 动态注入，解决 GraphBuilder 找不到节点的问题
+
+        # ========================================================
+        # 【合体逻辑】如果没有接 finite_plan，但是接了万能节点的数据，就地生成 plan
+        # ========================================================
+        if finite_plan is None and (segments_json or media_bundle):
+            # 动态导入原桥接器模块（因为我们的采样器在 h3_sampler 子目录里）
+            import importlib
+            try:
+                # 尝试导入根目录的桥接器
+                bridge_mod = importlib.import_module("custom_nodes.ComfyUI-Universal_Prompt_Optimizer.minimax_finite_bridge")
+            except ImportError:
+                try:
+                    bridge_mod = importlib.import_module("minimax_finite_bridge")
+                except ImportError:
+                    raise ValueError("找不到 minimax_finite_bridge 模块，请确保文件存在于插件根目录。")
+            
+            # 调用原桥接器的 execute 生成 plan（把我们能给的参数都传进去）
+            finite_plan, _summary = bridge_mod.MiniMaxH3FiniteBridgeGH.execute(
+                prompt_finite=prompt_finite,
+                media_bundle=media_bundle,
+                duration_sec=duration_sec,
+                width=width,
+                height=height,
+                audio_mode=audio_mode,
+                segments_json=segments_json,
+                # 把前端传进来的真实二采参数塞进去
+                bridge_overlaps=bridge_overlaps,
+                second_pass="true" if second_pass else "false",
+                second_pass_model=second_pass_model,
+                second_pass_high_steps=str(second_pass_high_steps)
+            )
+
+        if finite_plan is None:
+            raise ValueError("必须连接 finite_plan，或者连接万能节点提供 segments_json / media_bundle！")
 
         # 【提前拦截】解析 Plan，如果开启了二采，强制使用 Euler（SelfLift 的硬性要求）
         _pre_finite = _require_finite_plan(finite_plan)
@@ -1504,6 +1568,17 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 f"audio samples are removed; output is exactly the source-media "
                 f"duration ({target_output_frames} frames)."
             )
+
+        # 无条件生成 Video 对象（供 Max 导演台透传给原生预览节点）
+        video_node = graph.node(
+            "CreateVideo", 
+            id="auto_create_video", 
+            images=merged_images, 
+            audio=merged_audio, 
+            fps=fps
+        )
+
+
         return io.NodeOutput(
-            last_sampled, merged_images, merged_audio, status, expand=graph.finalize()
+            last_sampled, merged_images, merged_audio, status, video_node.out(0), expand=graph.finalize()
         )

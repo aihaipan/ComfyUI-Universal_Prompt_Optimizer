@@ -5,6 +5,8 @@ from .minimax_r2v_bridge import MiniMaxH3R2VBridgeExtension as _bridge_extension
 from .minimax_finite_bridge import MiniMaxH3FiniteBridgeExtension as _finite_bridge_extension
 from .h3_sampler import UniversalH3SamplerExtension as _h3_sampler_extension
 from .universal_model_loader import UniversalModelLoaderExtension as _model_loader_extension
+from .universal_director_node import UniversalMiniMax_H3DirectorExtension as _director_extension
+from .universal_director_ui_node import UniversalDirectorUIExtension as _director_ui_extension
 
 
 class _CombinedExtension(_ComfyExtension):
@@ -14,6 +16,8 @@ class _CombinedExtension(_ComfyExtension):
         result.extend(await _finite_bridge_extension().get_node_list())
         result.extend(await _h3_sampler_extension().get_node_list())
         result.extend(await _model_loader_extension().get_node_list())
+        result.extend(await _director_extension().get_node_list())
+        result.extend(await _director_ui_extension().get_node_list())
         return result
 
 

@@ -9,7 +9,7 @@ class UniversalH3ModelLoader(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="UniversalH3ModelLoader",
-            display_name="Universal 模型动态加载台台",
+            display_name="Universal 模型动态加载器",
             category="Universal Prompt/Loaders",
             description="动态加载各种格式的模型、LoRA和VAE。",
             inputs=[
@@ -112,6 +112,13 @@ class UniversalH3ModelLoader(io.ComfyNode):
             if a_name:
                 path = folder_paths.get_full_path("vae", a_name)
                 audio_vae = comfy.sd.VAE(sd=comfy.utils.load_torch_file(path))
+
+        if not model:
+            raise ValueError("【加载台错误】主模型未找到，请检查是否选中了主模型文件。")
+        if not vae:
+            raise ValueError("【加载台错误】视频 VAE 未找到，请在“视频 VAE”区点击 +Add 并选择一个文件！")
+        if not audio_vae:
+            raise ValueError("【加载台错误】音频 VAE 未找到，请在“音频 VAE”区点击 +Add 并选择一个文件！")
 
         return io.NodeOutput(model, clip, vae, audio_vae)
 

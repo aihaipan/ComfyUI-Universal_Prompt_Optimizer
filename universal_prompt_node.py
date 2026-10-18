@@ -284,7 +284,7 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
         media_inputs = [_hidden_string(s) for s in IMAGE_SLOTS + VIDEO_SLOTS + AUDIO_SLOTS]
         return io.Schema(
             node_id="UniversalPromptOptimizerGH",
-            display_name="万能模型提示词优化",
+            display_name="Universal 模型提示词优化",
             category=NODE_CATEGORY,
             description=(
                 "Universal prompt optimizer with rich media slots (image/video/audio). "
@@ -317,6 +317,8 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
                 # 仅当"生视频 → 参考模型"子 tab 激活时输出内容，其他情况为空字符串。
                 io.Custom("H3_REF_MODS").Output("refmod_mods"),
                 io.String.Output("prompt_refmod"),
+                # 【UI 合体】专供导演台读取的参数配置
+                io.String.Output("director_config"),
             ],
         )
 
@@ -372,9 +374,19 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
                     logging.warning("Universal Prompt Optimizer: RefMod load failed: %s", exc)
                     refmod_mods = None
 
+        # 构造导演台的参数配置（暂时不传宽高，让导演台的 UI 生效）
+        dir_cfg = {
+            "steps": 8,       # 暂时写死 8，以后从前端读
+            "seed": 42,       # 暂时写死 42
+            "second_pass": False,
+            "second_pass_model": "",
+            "second_pass_high_steps": 2,
+        }
+
         return io.NodeOutput(
             image, media_bundle, prompt_text, conditioning,
             prompt_text, segments_json, refmod_mods, refmod_text,
+            json.dumps(dir_cfg),
         )
 
 
