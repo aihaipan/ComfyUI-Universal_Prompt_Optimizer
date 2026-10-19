@@ -244,7 +244,7 @@ def _dynamic_mask_blend_fn(anchor, state, generated_tail_elements=0):
     return fn
 
 
-_DRIFT_CONTROL_KEY = "minimax_h3_timeline_drift_control_av"
+_DRIFT_CONTROL_KEY = "minimax_h3_timeline_drift_control"
 
 _CONTINUATION_DC_CLAMP = 0.05
 

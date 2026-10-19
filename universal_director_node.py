@@ -4,7 +4,7 @@ import logging
 from comfy_api.latest import io, ComfyExtension
 
 # 导入采样器类
-from .h3_sampler.minimax_h3_finite_segments import MiniMaxH3FiniteSegmentSampler
+from .h3_sampler.segment_sampler import UniversalSegmentSampler
 
 class UniversalMiniMax_H3Director(io.ComfyNode):
     @classmethod
@@ -21,9 +21,9 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
                 io.Vae.Input("vae"),
                 io.Vae.Input("audio_vae"),
                 # 接收万能节点的数据
-                io.Custom("GH_MEDIA_BUNDLE").Input("media_bundle", optional=True),
-                io.Custom("GH_PROMPT_STR").Input("prompt_finite", optional=True),
-                io.Custom("GH_SEGMENTS_STR").Input("segments_json", optional=True),
+                io.Custom("UNIVERSAL_MEDIA_BUNDLE").Input("media_bundle", optional=True),
+                io.Custom("UNIVERSAL_PROMPT_STR").Input("prompt_finite", optional=True),
+                io.Custom("UNIVERSAL_SEGMENTS_STR").Input("segments_json", optional=True),
                 
                 # 参数配置
                 io.String.Input("director_config", optional=True, default=""),
@@ -83,7 +83,7 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
                 logging.warning("Failed to parse director_config: %s", e)
 
         # 调用底层采样器（底层会自动处理视频保存逻辑）
-        out = MiniMaxH3FiniteSegmentSampler.execute(
+        out = UniversalSegmentSampler.execute(
             model=model, clip=clip, vae=vae, audio_vae=audio_vae,
             finite_plan=None, 
             media_bundle=media_bundle,

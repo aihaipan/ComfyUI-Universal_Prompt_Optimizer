@@ -4360,7 +4360,7 @@ function createPanel(node) {
 }
 
 app.registerExtension({
-    name: "goohai.universal_prompt_optimizer",
+    name: "universal.prompt_optimizer",
     // 【L2-d】hook app.queuePrompt：运行前自动优化
     async setup() {
         if (window.__ghupoQueueHookInstalled) return;

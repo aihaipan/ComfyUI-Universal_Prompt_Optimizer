@@ -4482,7 +4482,7 @@ function createPanel(node) {
 }
 
 app.registerExtension({
-    name: "goohai.universal_director_ui_max",
+    name: "universal.director_ui_max",
     async setup() {
         // 保留你原有的 setup 逻辑...
         return;

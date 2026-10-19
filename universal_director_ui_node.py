@@ -207,7 +207,7 @@ def _probe_video_metadata(filename: str) -> dict:
 
 
 def _build_media_bundle(media: dict) -> dict:
-    """Pack every uploaded slot into a single GH_MEDIA_BUNDLE dict.
+    """Pack every uploaded slot into a single UNIVERSAL_MEDIA_BUNDLE dict.
 
     Keys: "images" / "audios" / "videos" — each a dict {index: value},
     index 0-based and matching the Director's MMX_DIR_GROUP convention.

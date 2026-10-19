@@ -27,16 +27,16 @@ from comfy_api.latest import io
 from comfy_execution.graph_utils import GraphBuilder
 from comfy_extras.nodes_audio import AudioConcat
 
-from .experimental_latent_guide import (
+from .latent_guide import (
     _apply_linear_temporal_noise_mask,
     _valid_guide_frames,
 )
-from .drift_control_av import (
+from .drift_control import (
     drift_control_step_count,
-    install_drift_control_av_model,
+    install_drift_control_model,
 )
 from .selflift_runtime.h3_upscaler import checkpoint_is_h3_compatible
-from .minimax_h3_timeline_director import (
+from .director_core import (
     TimelinePlan,
     _require_timeline_plan,
     _timeline_for_prompt_index,
@@ -631,7 +631,7 @@ class MiniMaxH3FiniteLatentContinuation(io.ComfyNode):
         if previous_low_carry is not None:
             masked_target = dict(masked_target)
             masked_target["selflift_previous_low_resolution_carry"] = previous_low_carry
-        patched_model = install_drift_control_av_model(
+        patched_model = install_drift_control_model(
             model, masked_target, sigmas, prefix_steps=details["video_tokens"]
         )
         return io.NodeOutput(positive, masked_target, details["frames"], patched_model)
@@ -1265,7 +1265,7 @@ class MiniMaxH3FiniteLoopOutput(io.ComfyNode):
         return io.NodeOutput(last_latent, images, audio, status)
 
 
-class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
+class UniversalSegmentSampler(io.ComfyNode):
     """Expand a finite plan into a standard acyclic sampling graph."""
 
     @classmethod
@@ -1286,9 +1286,9 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                 io.Vae.Input("audio_vae"),
                 FiniteSegmentPlan.Input("finite_plan", optional=True, display_name="Finite Segment Plan (可不接)"),
                 # 【吃桥接器】万能节点直连接口
-                io.Custom("GH_MEDIA_BUNDLE").Input("media_bundle", optional=True),
-                io.Custom("GH_PROMPT_STR").Input("prompt_finite", optional=True),
-                io.Custom("GH_SEGMENTS_STR").Input("segments_json", optional=True),
+                io.Custom("UNIVERSAL_MEDIA_BUNDLE").Input("media_bundle", optional=True),
+                io.Custom("UNIVERSAL_PROMPT_STR").Input("prompt_finite", optional=True),
+                io.Custom("UNIVERSAL_SEGMENTS_STR").Input("segments_json", optional=True),
                 # 【吃桥接器】桥接器的参数面板
                 io.Float.Input("duration_sec", default=5.0, min=1.0, max=120.0),
                 io.Int.Input("width", default=864, min=64, max=4096, step=32),
@@ -1347,7 +1347,7 @@ class MiniMaxH3FiniteSegmentSampler(io.ComfyNode):
                     raise ValueError("找不到 minimax_finite_bridge 模块，请确保文件存在于插件根目录。")
             
             # 调用原桥接器的 execute 生成 plan（把我们能给的参数都传进去）
-            finite_plan, _summary = bridge_mod.MiniMaxH3FiniteBridgeGH.execute(
+            finite_plan, _summary = bridge_mod.UniversalFiniteBridge.execute(
                 prompt_finite=prompt_finite,
                 media_bundle=media_bundle,
                 duration_sec=duration_sec,

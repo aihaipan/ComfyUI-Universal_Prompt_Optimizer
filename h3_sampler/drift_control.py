@@ -1,5 +1,5 @@
 # Forked from ComfyUI-MiniMaxH3-TimelineDirector (GPL-3.0-or-later).
-# Original: drift_control_av.py
+# Original: drift_control.py
 # Modified by aihaipan (2026-10): vendored into ComfyUI-Universal_Prompt_Optimizer.
 # See https://github.com/<原作者仓库> for the original implementation.
 """Schedule-matched prefix masks for experimental MiniMax H3 continuation.
@@ -20,7 +20,7 @@ import torch
 DRIFT_CONTROL_VIDEO_STEPS = 12
 DRIFT_CONTROL_MATCHED_STEPS = 8
 DRIFT_CONTROL_TAPER_STEPS = 4
-_WRAPPER_KEY = "minimax_h3_timeline_drift_control_av"
+_WRAPPER_KEY = "minimax_h3_timeline_drift_control"
 
 
 def _schedule_values(sigmas: Any) -> tuple[float, ...]:
@@ -219,7 +219,7 @@ class _DriftControlMaskState:
         return executor(*args, **kwargs)
 
 
-def install_drift_control_av_model(
+def install_drift_control_model(
     model: Any, latent: dict, sigmas: Any, prefix_steps: int,
 ):
     """Clone an H3 model and install matching sampler/model mask hooks."""

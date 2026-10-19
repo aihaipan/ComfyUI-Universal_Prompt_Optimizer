@@ -12,7 +12,7 @@ from comfy_api.latest import ComfyExtension, io
 NODE_CATEGORY = "Universal Prompt/R2V Bridge"
 
 
-class MiniMaxH3R2VBridgeGH(io.ComfyNode):
+class UniversalR2VBridge(io.ComfyNode):
     """Bridge a universal prompt + media bundle into the MiniMax H3 Director.
 
     The Director's ``r2v_groups`` input expects a single ``MMX_DIR_GROUP``
@@ -24,7 +24,7 @@ class MiniMaxH3R2VBridgeGH(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3R2VBridgeGH",
+            node_id="UniversalR2VBridge",
             display_name="MiniMax H3 R2V 桥接器",
             category=NODE_CATEGORY,
             description=(
@@ -49,7 +49,7 @@ class MiniMaxH3R2VBridgeGH(io.ComfyNode):
                     step=0.1,
                     tooltip="该 r2v 组的时长（秒）",
                 ),
-                io.Custom("GH_MEDIA_BUNDLE").Input(
+                io.Custom("UNIVERSAL_MEDIA_BUNDLE").Input(
                     "media_bundle",
                     optional=True,
                     tooltip="通用优化节点的 media_bundle 输出；未连接则视为空组",
@@ -94,7 +94,7 @@ class MiniMaxH3R2VBridgeGH(io.ComfyNode):
 
 class MiniMaxH3R2VBridgeExtension(ComfyExtension):
     async def get_node_list(self):
-        return [MiniMaxH3R2VBridgeGH]
+        return [UniversalR2VBridge]
 
 
 def comfy_entrypoint():

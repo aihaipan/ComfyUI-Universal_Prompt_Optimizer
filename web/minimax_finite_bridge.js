@@ -4,7 +4,7 @@
 
 import { app } from "/scripts/app.js";
 
-const NODE = "MiniMaxH3FiniteBridgeGH";
+const NODE = "UniversalFiniteBridge";
 
 function make(tag, css = {}, text = "") {
     const el = document.createElement(tag);

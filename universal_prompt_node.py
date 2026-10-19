@@ -207,7 +207,7 @@ def _probe_video_metadata(filename: str) -> dict:
 
 
 def _build_media_bundle(media: dict) -> dict:
-    """Pack every uploaded slot into a single GH_MEDIA_BUNDLE dict.
+    """Pack every uploaded slot into a single UNIVERSAL_MEDIA_BUNDLE dict.
 
     Keys: "images" / "audios" / "videos" — each a dict {index: value},
     index 0-based and matching the Director's MMX_DIR_GROUP convention.
@@ -305,14 +305,14 @@ class UniversalPromptOptimizerGH(io.ComfyNode):
             outputs=[
                 io.Image.Output("image"),
                 # 打包所有上传素材（9 图 + 3 音频）供 MiniMax H3 R2V 桥接器使用。
-                io.Custom("GH_MEDIA_BUNDLE").Output("media_bundle"),
+                io.Custom("UNIVERSAL_MEDIA_BUNDLE").Output("media_bundle"),
                 # prompt_r2v（String 类型）：给 R2V 桥接器使用
                 io.String.Output("prompt_r2v"),
                 io.Conditioning.Output("conditioning"),
                 # prompt_finite（String 包装类型）：给 Finite Segment 桥接器使用（避免跟 R2V 类型冲突）
-                io.Custom("GH_PROMPT_STR").Output("prompt_finite"),                
+                io.Custom("UNIVERSAL_PROMPT_STR").Output("prompt_finite"),                
                 # segments_json（String 包装类型）：给 Finite Segment 桥接器使用
-                io.Custom("GH_SEGMENTS_STR").Output("segments_json"),
+                io.Custom("UNIVERSAL_SEGMENTS_STR").Output("segments_json"),
                 # prompt_refmod（String 类型）：给 H3 RefMod Text Encode 的 prompt 输入使用
                 # 仅当"生视频 → 参考模型"子 tab 激活时输出内容，其他情况为空字符串。
                 io.Custom("H3_REF_MODS").Output("refmod_mods"),

@@ -192,7 +192,7 @@ def _build_summary_multi(all_images, all_audios, seg_plans, width, height, audio
     return "\n".join(lines)
 
 
-class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
+class UniversalFiniteBridge(io.ComfyNode):
     """Bridge a universal prompt + media bundle into TimelineDirector's
     Finite Segment Sampler input. Supports single-segment and multi-segment
     (via segments_json, either JSON or mini line format)."""
@@ -200,7 +200,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3FiniteBridgeGH",
+            node_id="UniversalFiniteBridge",
             display_name="MiniMax H3 Finite Segment 桥接器",
             category=NODE_CATEGORY,
             description=(
@@ -209,12 +209,12 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
                 "either JSON or the mini line format '秒数 | 提示词 | images=1,3'."
             ),
             inputs=[
-                io.Custom("GH_MEDIA_BUNDLE").Input(
+                io.Custom("UNIVERSAL_MEDIA_BUNDLE").Input(
                     "media_bundle",
                     optional=True,
                     tooltip="万能节点的 media_bundle 输出；未连接则视为空素材",
                 ),
-                io.Custom("GH_PROMPT_STR").Input(
+                io.Custom("UNIVERSAL_PROMPT_STR").Input(
                     "prompt_finite",
                     optional=True,
                     tooltip="优化后的提示词（来自万能节点的 prompt_finite 输出）",
@@ -249,7 +249,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
                     default="参考音色",
                     tooltip="参考音色 = 参考上传音频的音色重新生成对白；强制使用音频1 = 原声直入（仅取第 1 条）",
                 ),
-                io.Custom("GH_SEGMENTS_STR").Input(
+                io.Custom("UNIVERSAL_SEGMENTS_STR").Input(
                     "segments_json",
                     optional=True,
                     tooltip="多段模式。留空 = 单段。由万能节点自动生成。",
@@ -569,7 +569,7 @@ class MiniMaxH3FiniteBridgeGH(io.ComfyNode):
 
 class MiniMaxH3FiniteBridgeExtension(ComfyExtension):
     async def get_node_list(self):
-        return [MiniMaxH3FiniteBridgeGH]
+        return [UniversalFiniteBridge]
 
 
 def comfy_entrypoint():

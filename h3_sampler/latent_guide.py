@@ -1,5 +1,5 @@
 # Forked from ComfyUI-MiniMaxH3-TimelineDirector (GPL-3.0-or-later).
-# Original: drift_control_av.py
+# Original: drift_control.py
 # Modified by aihaipan (2026-10): vendored into ComfyUI-Universal_Prompt_Optimizer.
 # See https://github.com/<原作者仓库> for the original implementation.
 """Experimental MiniMax H3 nodes used for latent continuity A/B tests.
@@ -219,13 +219,13 @@ def _apply_linear_temporal_noise_mask(
     }
 
 
-class MiniMaxH3AddLatentGuide(io.ComfyNode):
+class UniversalAddLatentGuide(io.ComfyNode):
     """Anchor a sampled H3 latent tail without an RGB decode/encode round trip."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3AddLatentGuide",
+            node_id="UniversalAddLatentGuide",
             display_name="MiniMax H3 Direct Latent Guide (Experimental)",
             category="MiniMax H3/Experimental",
             description=(
@@ -280,13 +280,13 @@ class MiniMaxH3AddLatentGuide(io.ComfyNode):
         return io.NodeOutput(conditioned, report)
 
 
-class MiniMaxH3VisualDifferenceMetrics(io.ComfyNode):
+class UniversalVisualDifferenceMetrics(io.ComfyNode):
     """Report lightweight objective differences between two decoded videos."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3VisualDifferenceMetrics",
+            node_id="UniversalVisualDifferenceMetrics",
             display_name="MiniMax H3 Video Difference Metrics (Experimental)",
             category="MiniMax H3/Experimental",
             description="Compare two RGB frame batches and report MAE, MSE, PSNR, means, saturation, and amplified differences.",

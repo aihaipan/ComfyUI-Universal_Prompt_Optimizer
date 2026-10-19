@@ -1,9 +1,9 @@
 import nodes
 from comfy_api.latest import ComfyExtension
 
-from .minimax_h3_timeline_director import MiniMaxH3TimelineEncoder, UniversalH3TimelineEncoderWithRefMod
-from .minimax_h3_finite_segments import (
-    MiniMaxH3FiniteSegmentSampler,
+from .director_core import UniversalTimelineEncoder, UniversalH3TimelineEncoderWithRefMod
+from .segment_sampler import (
+    UniversalSegmentSampler,
     MiniMaxH3FiniteLatentContinuation,
     MiniMaxH3FiniteAudioTrimTail,
     MiniMaxH3FiniteOutputTrim,
@@ -23,9 +23,9 @@ from .selflift_runtime.nodes import (
 
 # 运行时用到的内部节点，只注入到后端，不给前端看，防黑屏
 _INTERNAL_MAPPINGS = {
-    "UniversalH3TimelineEncoder": MiniMaxH3TimelineEncoder,
+    "UniversalH3TimelineEncoder": UniversalTimelineEncoder,
     "UniversalH3TimelineEncoderWithRefMod": UniversalH3TimelineEncoderWithRefMod,
-    "UniversalH3SegmentSampler": MiniMaxH3FiniteSegmentSampler,
+    "UniversalH3SegmentSampler": UniversalSegmentSampler,
     "UniversalH3FiniteLatentContinuation": MiniMaxH3FiniteLatentContinuation,
     "UniversalH3FiniteAudioTrimTail": MiniMaxH3FiniteAudioTrimTail,
     "UniversalH3FiniteOutputTrim": MiniMaxH3FiniteOutputTrim,
@@ -48,6 +48,6 @@ def inject_internal_nodes():
 class UniversalH3SamplerExtension(ComfyExtension):
     async def get_node_list(self):
         # 只给前端暴露主采样器
-        return [MiniMaxH3FiniteSegmentSampler]
+        return [UniversalSegmentSampler]
 
 __all__ = ["UniversalH3SamplerExtension", "inject_internal_nodes"]

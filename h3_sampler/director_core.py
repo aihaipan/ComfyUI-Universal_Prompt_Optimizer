@@ -43,14 +43,14 @@ from comfy_extras import nodes_minimax_h3 as h3_nodes
 from server import PromptServer
 
 
-log = logging.getLogger("MiniMaxH3TimelineDirector")
+log = logging.getLogger("UniversalTimelineDirector")
 FPS = 24.0
 MAX_REF_IMAGES = 9
 MAX_REF_VIDEOS = 3
 MAX_REF_AUDIOS = 3
 MAX_REF_VIDEO_SECONDS = 15.0
 MIN_REF_VIDEO_SECONDS = 5.0 / FPS
-UPLOAD_SUBDIR = "minimax_h3_timeline_director"
+UPLOAD_SUBDIR = "director_core"
 PREVIEW_SUBDIR = f"{UPLOAD_SUBDIR}/preview_proxies"
 PREVIEW_MAX_WIDTH = 480
 PREVIEW_MAX_HEIGHT = 270
@@ -1538,13 +1538,13 @@ def _encode_timeline_plan(
     return conditioning, latent, video_audio_output, standalone_audio_output
 
 
-class MiniMaxH3TimelinePlanner(io.ComfyNode):
+class UniversalTimelinePlanner(io.ComfyNode):
     """Editable material/guide plan which deliberately performs no H3 encode."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelinePlanner",
+            node_id="UniversalTimelinePlanner",
             display_name="MiniMax H3 Material Planner",
             description=(
                 "Edit a timeline and output a lightweight material plan. The plan may feed a prompt "
@@ -1635,7 +1635,7 @@ class MiniMaxH3TimelinePlanner(io.ComfyNode):
         )
 
 
-class MiniMaxH3OmniPromptBridge(io.ComfyNode):
+class UniversalOmniPromptBridge(io.ComfyNode):
     """Run Prompt Rewriter Omni directly from the planner's ordered media bundle."""
 
     @classmethod
@@ -1643,7 +1643,7 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         tasks, models, quantizations = _omni_schema_choices()
         default_task = "REF2AV" if "REF2AV" in tasks else tasks[0]
         return io.Schema(
-            node_id="MiniMaxH3OmniPromptBridge",
+            node_id="UniversalOmniPromptBridge",
             display_name="MiniMax H3 Omni Media Prompt Bridge",
             description=(
                 "Read the planner's ordered Omni media bundle and call the MiniMax-H3 Prompt Rewriter "
@@ -1694,7 +1694,7 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         warning = _omni_compatibility_warning()
         if warning:
             log.warning(warning)
-            print(f"[MiniMaxH3TimelineDirector] {warning}", flush=True)
+            print(f"[UniversalTimelineDirector] {warning}", flush=True)
         items = bundle["items"]
         try:
             max_references = int(module.MAX_REFERENCES)
@@ -1757,13 +1757,13 @@ class MiniMaxH3OmniPromptBridge(io.ComfyNode):
         return io.NodeOutput(rewritten)
 
 
-class MiniMaxH3TimelineEncoder(io.ComfyNode):
+class UniversalTimelineEncoder(io.ComfyNode):
     """Encode a planner result only after an external prompt rewrite completes."""
 
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelineEncoder",
+            node_id="UniversalTimelineEncoder",
             display_name="MiniMax H3 Plan Encoder",
             description="Encode a material plan and final H3 prompt into references, native Guides, conditioning, and AV latent.",
             category="model/conditioning/minimax",
@@ -1797,11 +1797,11 @@ class MiniMaxH3TimelineEncoder(io.ComfyNode):
         return io.NodeOutput(conditioning, latent, video_audio, standalone_audio)
 
 
-class MiniMaxH3TimelineDirector(io.ComfyNode):
+class UniversalTimelineDirector(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MiniMaxH3TimelineDirector",
+            node_id="UniversalTimelineDirector",
             display_name="MiniMax H3 Timeline Director",
             description=(
                 "Assemble H3 references on an editable timeline. Overlapping video can use native Add Guide, "
