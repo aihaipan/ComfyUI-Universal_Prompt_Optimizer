@@ -505,8 +505,17 @@ function createPanel(node) {
     overlapRow.style.cssText = "display:flex;align-items:center;gap:8px;width:100%;margin-top:4px;";
     overlapRow.append(make("span", {}, "段间重叠"), overlapInput);
 
+    const execModeSelect = make("select");
+    execModeSelect.className = "ghupo-duration-input";
+    execModeSelect.style.flex = "1";
+    execModeSelect.innerHTML = `<option value="full">全自动 (一采+二采)</option><option value="pass1">仅一采 (生成缓存)</option><option value="pass2">仅二采 (读取缓存)</option>`;
+    
     const spRow = make("div");
     spRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:4px;";
+    const spModeSelect = make("select");
+    spModeSelect.className = "ghupo-duration-input";
+    spModeSelect.style.flex = "1";
+    spModeSelect.innerHTML = `<option value="selflift">极速二采 (SelfLift)</option><option value="refine">高清二采 (Refine)</option>`;
     
     const spToggle = make("label");
     spToggle.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-weight:bold;color:#0aa4d6;";
@@ -516,9 +525,12 @@ function createPanel(node) {
     spStepsWrap.style.cssText = "display:flex;align-items:center;gap:4px;white-space:nowrap;";
     spStepsWrap.append(make("span", {}, "高清步数"), spStepsInput);
 
-    spRow.append(spToggle, spModelSelect, spStepsWrap);
+    spRow.append(spToggle, spModeSelect, spModelSelect, spStepsWrap);
+    const execRow = make("div");
+    execRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:4px;";
+    execRow.append(make("span", {}, "显存调度"), execModeSelect);
 
-    dirAdvancedPanel.append(audioRow, overlapRow, spRow);
+    dirAdvancedPanel.append(audioRow, overlapRow, spRow, execRow);
 
     // 获取二采模型列表
     fetch("/minimax-bridge/upscalers").then(r => r.json()).then(data => {
@@ -1038,6 +1050,8 @@ function createPanel(node) {
             dirSecondPass: spCheck.checked,
             dirSecondPassModel: spModelSelect.value,
             dirSecondPassSteps: parseInt(spStepsInput.value, 10) || 2,
+            dirSecondPassMode: spModeSelect.value,
+            dirExecMode: execModeSelect.value,
             dirAudioMode: audioSelect.value,
             dirBridgeOverlaps: overlapInput.value,
         });
@@ -4398,7 +4412,9 @@ function createPanel(node) {
                 if (restored.dirSteps) stepsInput.value = restored.dirSteps;
                 if (restored.dirSecondPass !== undefined) spCheck.checked = restored.dirSecondPass;
                 if (restored.dirSecondPassModel) spModelSelect.value = restored.dirSecondPassModel;
+                if (restored.dirExecMode) execModeSelect.value = restored.dirExecMode;
                 if (restored.dirSecondPassSteps) spStepsInput.value = restored.dirSecondPassSteps;
+                if (restored.dirSecondPassMode) spModeSelect.value = restored.dirSecondPassMode;
                 if (restored.dirAudioMode) audioSelect.value = restored.dirAudioMode;
                 if (restored.dirBridgeOverlaps !== undefined) overlapInput.value = restored.dirBridgeOverlaps;
                 if (Number.isFinite(restored.height)) {

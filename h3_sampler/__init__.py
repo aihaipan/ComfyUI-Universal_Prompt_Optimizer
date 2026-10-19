@@ -4,6 +4,9 @@ from comfy_api.latest import ComfyExtension
 from .director_core import UniversalTimelineEncoder, UniversalH3TimelineEncoderWithRefMod
 from .segment_sampler import (
     UniversalSegmentSampler,
+    UniversalH3LatentUpscale,
+    UniversalSaveLatent,
+    UniversalLoadLatent,
     MiniMaxH3FiniteLatentContinuation,
     MiniMaxH3FiniteAudioTrimTail,
     MiniMaxH3FiniteOutputTrim,
@@ -26,6 +29,9 @@ _INTERNAL_MAPPINGS = {
     "UniversalH3TimelineEncoder": UniversalTimelineEncoder,
     "UniversalH3TimelineEncoderWithRefMod": UniversalH3TimelineEncoderWithRefMod,
     "UniversalH3SegmentSampler": UniversalSegmentSampler,
+     "UniversalH3LatentUpscale": UniversalH3LatentUpscale,
+     "UniversalSaveLatent": UniversalSaveLatent,
+    "UniversalLoadLatent": UniversalLoadLatent,
     "UniversalH3FiniteLatentContinuation": MiniMaxH3FiniteLatentContinuation,
     "UniversalH3FiniteAudioTrimTail": MiniMaxH3FiniteAudioTrimTail,
     "UniversalH3FiniteOutputTrim": MiniMaxH3FiniteOutputTrim,

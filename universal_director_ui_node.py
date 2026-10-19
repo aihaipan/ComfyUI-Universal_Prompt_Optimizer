@@ -318,7 +318,8 @@ class UniversalDirectorUI(io.ComfyNode):
         # 1. 获取宽高及高级参数
         _w, _h = width, height
         _steps = 8
-        _sp, _sp_model, _sp_steps = False, "", 2
+        _sp, _sp_model, _sp_steps, _sp_mode = False, "", 2, "selflift"
+        _exec_mode = "full"
         _audio_mode = "参考音色"
         _save_prefix = "Universal_MiniMax_H3director/Universal_MiniMax_H3director"
         _bridge_overlaps = ""
@@ -332,6 +333,8 @@ class UniversalDirectorUI(io.ComfyNode):
                 if "dirSecondPass" in st: _sp = bool(st["dirSecondPass"])
                 if "dirSecondPassModel" in st: _sp_model = str(st["dirSecondPassModel"])
                 if "dirSecondPassSteps" in st: _sp_steps = int(st["dirSecondPassSteps"])
+                if "dirSecondPassMode" in st: _sp_mode = str(st["dirSecondPassMode"])
+                if "dirExecMode" in st: _exec_mode = str(st["dirExecMode"])
                 if "dirAudioMode" in st: _audio_mode = str(st["dirAudioMode"])
                 if "dirSavePrefix" in st: _save_prefix = str(st["dirSavePrefix"])
                 if "dirBridgeOverlaps" in st: _bridge_overlaps = str(st["dirBridgeOverlaps"])
@@ -374,6 +377,8 @@ class UniversalDirectorUI(io.ComfyNode):
             second_pass=_sp, 
             second_pass_model=_sp_model, 
             second_pass_high_steps=_sp_steps,
+            second_pass_mode=_sp_mode,
+            exec_mode=_exec_mode,
             save_video=_save_video,
             fps=24,
             filename_prefix=_save_prefix,

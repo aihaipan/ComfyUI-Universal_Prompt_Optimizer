@@ -318,7 +318,7 @@ class UniversalFiniteBridge(io.ComfyNode):
             sp_model = VERIFY_SECOND_PASS_MODEL
             sp_steps = VERIFY_SECOND_PASS_STEPS
         logging.info(
-            "【Universal Director Console】 second_pass: enabled=%s model=%s steps=%s",
+            "【UniversalDirectorConsole】 second_pass: enabled=%s model=%s steps=%s",
             sp_enabled, sp_model or "(default)", sp_steps,
         )
 
@@ -389,7 +389,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                 _filtered = [{"file": str(v["name"]), "id": f"img-0-{k}"} for k, v in valid_slots]
                 if _filtered:
                     all_images = _filtered
-                    logging.info(f"【Universal Director Console】 Single segment using independent media: {len(all_images)} images")
+                    logging.info(f"【UniversalDirectorConsole】 Single segment using independent media: {len(all_images)} images")
             else:
                 # 兼容旧逻辑（图片过滤）
                 _idx = _seg0.get("images")
@@ -401,7 +401,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                     if _filtered:
                         all_images = _filtered
                     logging.info(
-                        "【Universal Director Console】 single: filtered images to %d (from user references)",
+                        "【UniversalDirectorConsole】 single: filtered images to %d (from user references)",
                         len(_filtered),
                     )
             # 【时长同步】提取段时长，覆盖 bridge widget
@@ -412,7 +412,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                     if _d_val > 0:
                         single_seg_duration = _d_val
                         logging.info(
-                            "【Universal Director Console】 single: duration from segments_json = %.2fs (overrides widget %.2fs)",
+                            "【UniversalDirectorConsole】 single: duration from segments_json = %.2fs (overrides widget %.2fs)",
                             single_seg_duration, float(duration_sec or 5.0),
                         )
                 except (TypeError, ValueError):
@@ -472,7 +472,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                 all_images, all_audios, width, height, length, seconds, audio_mode
             )
             logging.info(
-                "【Universal Director Console】 (single): %d image(s), %d audio(s), %dx%d, %d frames",
+                "【UniversalDirectorConsole】 (single): %d image(s), %d audio(s), %dx%d, %d frames",
                 len(all_images), len(all_audios), width, height, length,
             )
             return io.NodeOutput(finite_plan, summary)
@@ -521,7 +521,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                     {"file": str(v["name"]), "id": f"img-{idx}-{k}"}
                     for k, v in valid_slots
                 ]
-                logging.info(f"【Universal Director Console】 Segment {idx+1} using independent media: {len(seg_images)} images")
+                logging.info(f"【UniversalDirectorConsole】 Segment {idx+1} using independent media: {len(seg_images)} images")
             else:
                 # 兼容旧逻辑
                 img_indices = seg.get("images")
@@ -592,7 +592,7 @@ class UniversalFiniteBridge(io.ComfyNode):
             overlaps=seg_overlaps,
         )
         logging.info(
-            "【Universal Director Console】 (multi): %d segment(s), %d image(s), %d audio(s), %dx%d, total %d frames",
+            "【UniversalDirectorConsole】 (multi): %d segment(s), %d image(s), %d audio(s), %dx%d, total %d frames",
             len(seg_plans), len(all_images), len(all_audios), width, height, previous_end_frame,
         )
         return io.NodeOutput(finite_plan, summary)

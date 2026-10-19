@@ -1299,6 +1299,9 @@ class UniversalSegmentSampler(io.ComfyNode):
                 io.Combo.Input("second_pass_model", options=_get_upscalers(), default=""),
                 io.Int.Input("second_pass_high_steps", default=2, min=1, max=10),
                 io.String.Input("bridge_overlaps", default="", optional=True),
+                # 16G 显存档位：开启后进一步降分辨率 + 降参考图，专治 _embed_and_pack 阶段 Aborted
+                io.Combo.Input("vram_tier", options=["normal", "16g_aggressive"], default="normal",
+                               tooltip="16g_aggressive：编码仅1张参考图、二采分辨率再降一档，缓解 RTX 5070 Ti 的 cudaMallocAsync 崩溃"),
                 
                 io.Combo.Input("sampler_name", options=comfy.samplers.KSampler.SAMPLERS, default="euler"),
                 io.Combo.Input("scheduler", options=comfy.samplers.KSampler.SCHEDULERS, default="simple"),
@@ -1322,11 +1325,15 @@ class UniversalSegmentSampler(io.ComfyNode):
         cls, model, clip, vae, audio_vae, 
         finite_plan=None, media_bundle=None, prompt_finite="", segments_json="", 
         duration_sec=5.0, width=864, height=480, audio_mode="参考音色",
-        second_pass=False, second_pass_model="", second_pass_high_steps=2, bridge_overlaps="",
+        second_pass=False, second_pass_model="", second_pass_high_steps=2, second_pass_mode="selflift", exec_mode="full", bridge_overlaps="",
         sampler_name="euler", scheduler="simple", steps=8, denoise=1.0, seed=0,
         continue_audio_latent=True, ref_image_size="match",
         fps=24, save_video=False, video_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director",
-        refmod_mods=None
+        refmod_mods=None,
+        # 【16G防OOM】二采自适应参数
+        refine_scale=0.5, refine_tile_count=1, refine_tile_overlap=64,
+        refine_chunk_frames=24, refine_chunk_overlap=8,
+        vram_tier="normal",
     ):
         from . import inject_internal_nodes
         inject_internal_nodes()  # 动态注入，解决 GraphBuilder 找不到节点的问题
@@ -1405,63 +1412,214 @@ class UniversalSegmentSampler(io.ComfyNode):
             number = index + 1
             overlap = int(finite.get("segment_overlaps", [overlap] * finite["segment_count"])[index])
             segment_plan = _finite_plan_for_segment(finite, number)
+            
+            # 【绝对防御】不管什么模式，无条件先建 encoder，让后面的二采有文本条件可用
+            # 16G 显存：限制参考图数量，避免 _embed_and_pack 编码阶段 OOM
+            # 优先保留第一张（主体），多余参考图会被截断，不影响图数=0 的兜底
+            _plan = segment_plan
+            if isinstance(_plan, dict):
+                _refs = _plan.get("reference_images") or _plan.get("references") or []
+                _max_refs = 1
+                if isinstance(_refs, (list, tuple)) and len(_refs) > _max_refs:
+                    logging.info(
+                        f"【UniversalDirectorConsole】16G guard: trimming references "
+                        f"{len(_refs)} -> {_max_refs} for segment {number}"
+                    )
+                    _refs = list(_refs)[:_max_refs]
+                    _plan = {**_plan, "reference_images": _refs}
+                    if "references" in _plan:
+                        _plan["references"] = _refs
+            # 【16G 二采峰值治理】核心修复：二采不重新编码参考图
+            # 参考 director_refine.py 的二采路径：读一采缓存 latent，仅编码放大后的 latent，
+            # 不再重复编码 3 张参考图（那是 ~17.7GB 峰值的主要来源）。
+            # _plan 里若含原始参考图，剥离它们，避免 UniversalH3TimelineEncoderWithRefMod
+            # 在二采阶段再次加载 VAE + TE 把 3 张图编码成 ref token。
+            _plan_refine = _plan
+            if second_pass and second_pass_mode == "refine" and exec_mode != "pass1":
+                if isinstance(_plan, dict):
+                    _plan_refine = dict(_plan)  # 浅拷贝，不动原始 plan
+                    for _key in ("reference_images", "references", "ref_images", "ref_image"):
+                        if _key in _plan_refine:
+                            logging.info(
+                                f"【UniversalDirectorConsole】Refine: dropping {_key} "
+                                f"({len(_plan_refine[_key]) if hasattr(_plan_refine[_key], '__len__') else '?'}) "
+                                f"from plan to avoid re-encoding during refine pass"
+                            )
+                            _plan_refine.pop(_key, None)
+            # 二采编码前：卸载一采残留的主模型权重（峰值治理第一步）
+            if second_pass and second_pass_mode == "refine" and exec_mode != "pass1":
+                _models_to_unload = []
+                if "model" in dir() and model is not None:
+                    _models_to_unload.append(model)
+                for _m in _models_to_unload:
+                    try:
+                        import comfy.model_management as _mm
+                        _mm.unload_model(_m)
+                    except Exception:
+                        pass
+                try:
+                    import comfy.model_management as _mm
+                    _mm.soft_empty_cache(force=True)
+                except Exception:
+                    pass
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                logging.info(f"【UniversalDirectorConsole】Refine encode: pass1 main-model weights unloaded")
+
             encoder = graph.node(
                 "UniversalH3TimelineEncoderWithRefMod", id=f"encode_{number}",
                 clip=clip, vae=vae, audio_vae=audio_vae,
-                plan=segment_plan,
+                plan=_plan_refine,
                 prompt=prompt, ref_image_size=ref_image_size,
                 refmod_mods=refmod_mods
             )
-            continuation_inputs = {
-                "positive": encoder.out(0), "target_latent": encoder.out(1),
-                "iteration": index, "overlap_frames": overlap,
-                "continue_audio_latent": bool(continue_audio_latent) and not fixed_audio,
-                "model": model, "sigmas": sigmas,
-            }
-            if previous_latent is not None and overlap > 0:
-                continuation_inputs["previous_latent"] = previous_latent
-                if overlap == 1:
-                    continuation_inputs.update(previous_images=previous_images, vae=vae, audio_vae=audio_vae)
-            continuation = graph.node(
-                "UniversalH3FiniteLatentContinuation", id=f"continue_{number}",
-                **continuation_inputs,
-            )
-            sampling_latent = continuation.out(1)
-            if fixed_audio:
-                source_audio = graph.node(
-                    "UniversalH3LockedAudioSlice" if locked_audio is not None else "UniversalH3SilentAudioSlice",
-                    id=(f"locked_audio_slice_{number}" if locked_audio is not None else f"silent_audio_slice_{number}"),
-                    plan=segment_plan,
-                )
-                encoded_audio = graph.node(
-                    "VAEEncodeAudio", id=f"fixed_audio_encode_{number}",
-                    audio=source_audio.out(0), vae=audio_vae,
-                )
-                sampling_latent = graph.node(
-                    "UniversalH3LockAudioLatent", id=f"fixed_audio_latent_{number}",
-                    target_latent=sampling_latent, audio_latent=encoded_audio.out(0),
-                ).out(0)
-            if second_pass:
+
+            # ==========================================
+            # 1. 一采与缓存加载阶段
+            # ==========================================
+            if exec_mode == "pass2":
+                # 【仅二采】直接读缓存
+                logging.info(f"【UniversalDirectorConsole】ExecMode: Pass2 Only. Loading latent for segment {number}")
                 sampled = graph.node(
-                    "UniversalH3TimelineSelfLiftSampler", id=f"sample_{number}",
-                    model=continuation.out(3), positive=continuation.out(0),
-                    negative=continuation.out(0), vae=vae,
-                    latent_image=sampling_latent, sampler=sampler, sigmas=sigmas,
-                    seed=int(seed), cfg=1.0, **selflift_settings,
+                    "UniversalLoadLatent", id=f"load_cache_{number}",
+                    filename_prefix=f"universal_cache_seg_{number}"
                 )
+                active_model = model
             else:
-                noise = graph.node("RandomNoise", id=f"noise_{number}", noise_seed=int(seed))
-                guider = graph.node(
-                    "BasicGuider", id=f"guider_{number}", model=continuation.out(3),
-                    conditioning=continuation.out(0),
+                # 构建 continuation
+                continuation_inputs = {
+                    "positive": encoder.out(0), "target_latent": encoder.out(1),
+                    "iteration": index, "overlap_frames": overlap,
+                    "continue_audio_latent": bool(continue_audio_latent) and not fixed_audio,
+                    "model": model, "sigmas": sigmas,
+                }
+                if previous_latent is not None and overlap > 0:
+                    continuation_inputs["previous_latent"] = previous_latent
+                    if overlap == 1:
+                        continuation_inputs.update(previous_images=previous_images, vae=vae, audio_vae=audio_vae)
+                
+                continuation = graph.node(
+                    "UniversalH3FiniteLatentContinuation", id=f"continue_{number}",
+                    **continuation_inputs,
                 )
+                sampling_latent = continuation.out(1)
+                active_model = continuation.out(3)
+
+                if second_pass and second_pass_mode == "selflift":
+                    logging.info(f"【UniversalDirectorConsole】ExecMode: SelfLift. Running integrated pass.")
+                    sampled = graph.node(
+                        "UniversalH3TimelineSelfLiftSampler", id=f"sample_selflift_{number}",
+                        model=active_model, positive=continuation.out(0),
+                        negative=continuation.out(0), vae=vae,
+                        latent_image=sampling_latent, sampler=sampler, sigmas=sigmas,
+                        seed=int(seed), cfg=1.0, **selflift_settings,
+                    )
+                else:
+                    noise = graph.node("RandomNoise", id=f"noise_{number}", noise_seed=int(seed))
+                    guider = graph.node(
+                        "BasicGuider", id=f"guider_{number}", model=active_model,
+                        conditioning=continuation.out(0),
+                    )
+                    sampled = graph.node(
+                        "SamplerCustomAdvanced", id=f"sample_{number}", noise=noise.out(0),
+                        guider=guider.out(0), sampler=sampler, sigmas=sigmas,
+                        latent_image=sampling_latent,
+                    )
+                    
+                    if exec_mode == "pass1":
+                        logging.info(f"【UniversalDirectorConsole】ExecMode: Pass1 Only. Saving latent for segment {number}")
+                        graph.node(
+                            "UniversalSaveLatent", id=f"save_cache_{number}",
+                            samples=sampled.out(0),
+                            filename_prefix=f"universal_cache_seg_{number}"
+                        )
+
+            # ==========================================
+            # 2. 二采精修阶段 (Refine)
+            # ==========================================
+            if second_pass and second_pass_mode == "refine" and exec_mode != "pass1":
+                # 【二采峰值治理】二采开始前，强制卸载一采残留的模型权重
+                # 参考 director_refine.py：二采只加载自己需要的模型，不继承一采权重
+                # 注意：本文件里没有 refiner_model 这个变量，只有 model，不要写 refiner_model
+                _to_unload = []
+                if "model" in dir() and model is not None:
+                    _to_unload.append(model)
+                if "clip" in dir() and clip is not None:
+                    _to_unload.append(clip)
+                if "vae" in dir() and vae is not None:
+                    _to_unload.append(vae)
+                if "audio_vae" in dir() and audio_vae is not None:
+                    _to_unload.append(audio_vae)
+                for _m in _to_unload:
+                    try:
+                        import comfy.model_management as _mm
+                        _mm.unload_model(_m)
+                    except Exception:
+                        pass
+                try:
+                    import comfy.model_management as _mm
+                    _mm.soft_empty_cache(force=True)
+                except Exception:
+                    pass
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                logging.info(f"【UniversalDirectorConsole】Refine entry: pass1 models unloaded ({len(_to_unload)} unloaded)")
+                # 【16G 防 OOM 屏障】一采完成后强制释放一采中间显存
+                # 【16G防OOM】二采分辨率自适应缩水（参考 director_refine.py 的 latent_chunking 策略）
+                # 高分辨率段缩到 50%，低分辨率段缩到 62.5%，大幅降低二采显存峰值
+                # 统一缩到 0.5，避免采样阶段注意力层显存峰值爆掉 16G
+                _is_16g = str(vram_tier) == "16g_aggressive"
+                _scale = (0.4 if _is_16g else 0.5) if not (refine_scale and 0 < refine_scale < 1.0) else float(refine_scale)
+                target_w = int(width * _scale)
+                target_h = int(height * _scale)
+                target_w = (target_w // 32) * 32
+                target_h = (target_h // 32) * 32
+                # 采样前强制释放上一阶段残留显存，防止峰值叠加导致 CUDA Aborted
+                try:
+                    import comfy.model_management
+                    comfy.model_management.soft_empty_cache(force=True)
+                except Exception:
+                    pass
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                logging.info(f"【UniversalDirectorConsole】Refine[LowVRAM]: Refining segment {number} at {target_w}x{target_h} (scale={_scale})")
+                # 时间分块：超过 refine_chunk_frames 帧则切块放大，避免长段 OOM
+                _seg_frames = int(finite.get("segment_lengths", [0])[index]) if finite.get("segment_lengths") else 0
+                _use_chunking = _seg_frames > int(refine_chunk_frames)
+                upscaled = graph.node(
+                    "UniversalH3LatentUpscale", id=f"upscale_{number}",
+                    samples=sampled.out(0),
+                    upscale_method="nearest-exact",
+                    width=target_w,
+                    height=target_h,
+                    enable_chunking=bool(_use_chunking),
+                    chunk_frames=int(refine_chunk_frames),
+                    chunk_overlap=int(refine_chunk_overlap),
+                )
+                from comfy_extras.nodes_custom_sampler import BasicScheduler
+                refine_steps = int(second_pass_high_steps) if second_pass_high_steps > 0 else 3
+                refine_sigmas = BasicScheduler().get_sigmas(model, "simple", refine_steps, 0.5)[0]
+                
+                noise2 = graph.node("RandomNoise", id=f"noise2_{number}", noise_seed=int(seed) + 1)
+                guider2 = graph.node("BasicGuider", id=f"guider2_{number}", model=active_model, conditioning=encoder.out(0))
+                # 注意：SamplerCustomAdvanced 原生不支持 enable_tiling / tile_count / tile_overlap，
+                # 这些参数会被忽略，因此移除。峰值显存改用「采样前释放 + 时间分块放大」来控制。
                 sampled = graph.node(
-                    "SamplerCustomAdvanced", id=f"sample_{number}", noise=noise.out(0),
-                    guider=guider.out(0), sampler=sampler, sigmas=sigmas,
-                    latent_image=sampling_latent,
+                    "SamplerCustomAdvanced", id=f"sample_refine_{number}",
+                    noise=noise2.out(0), guider=guider2.out(0),
+                    sampler=sampler, sigmas=refine_sigmas,
+                    latent_image=upscaled.out(0),
                 )
+            # 仅保留解码部分，缓存保存已在上方 else 分支中处理
+            # 【核心修复】temporal_overlap 自适应：不能超过段帧数，否则报 tensor size mismatch
+            _seg_frames = int(finite.get("segment_lengths", [0])[index]) if finite.get("segment_lengths") else 0
+            _temporal_overlap = min(8, max(1, _seg_frames // 4)) if _seg_frames > 0 else 8
             images = graph.node(
-                "VAEDecode", id=f"decode_video_{number}", samples=sampled.out(0), vae=vae,
+                "VAEDecodeTiled", id=f"decode_video_{number}", samples=sampled.out(0), vae=vae,
+                tile_size=512, overlap=64, temporal_size=64, temporal_overlap=_temporal_overlap,
             )
             audio = graph.node(
                 "VAEDecodeAudio", id=f"decode_audio_{number}", samples=sampled.out(0), vae=audio_vae,
@@ -1587,3 +1745,171 @@ class UniversalSegmentSampler(io.ComfyNode):
             last_sampled, merged_images, merged_audio, status, video_node.out(0), expand=graph.finalize()
         )
     
+class UniversalH3LatentUpscale(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UniversalH3LatentUpscale",
+            display_name="Universal H3 Latent Upscale",
+            category="MiniMax H3/Internal",
+            inputs=[
+                io.Latent.Input("samples"),
+                io.Combo.Input("upscale_method", options=["nearest-exact", "bilinear", "area", "bicubic"], default="nearest-exact"),
+                io.Int.Input("width", default=864),
+                io.Int.Input("height", default=480),
+                io.Boolean.Input("enable_chunking", default=False, label_on="启用时间分块", label_off="关闭时间分块"),
+                io.Int.Input("chunk_frames", default=24, min=8, max=96, tooltip="时间分块帧数阈值，超过则切块放大"),
+                io.Int.Input("chunk_overlap", default=8, min=0, max=32, tooltip="块间重叠帧数，线性融合减少接缝"),
+            ],
+            outputs=[io.Latent.Output()]
+        )
+    @classmethod
+    def execute(cls, samples, upscale_method, width, height,
+                enable_chunking=False, chunk_frames=24, chunk_overlap=8):
+        import torch
+        import comfy.utils
+        import gc
+        import comfy.model_management
+        from comfy.nested_tensor import NestedTensor
+
+        s = samples.copy()
+        z = s["samples"]
+
+        # 获取当前设备（通常为 cuda）
+        device = z.device if hasattr(z, 'device') else "cuda"
+
+        def _upscale_tensor(tensor, w, h, method):
+            """对单个 tensor 做插值放大（在 CPU 上操作，不占显存）"""
+            b, c, t, hh, ww = tensor.shape
+            tensor = tensor.movedim(2, 1).reshape(b * t, c, hh, ww)
+            tensor = comfy.utils.common_upscale(tensor, w, h, method, "disabled")
+            tensor = tensor.reshape(b, t, c, h, w).movedim(2, 1)
+            return tensor
+
+        def _chunked_upscale(tensor, w, h, method, cf, co):
+            """时间分块放大：超过 cf 帧则切块重叠放大再融合，避免长段 OOM"""
+            b, c, t, hh, ww = tensor.shape
+            if not bool(enable_chunking) or t <= cf:
+                return _upscale_tensor(tensor, w, h, method)
+
+            step = cf - co
+            if step < 1:
+                step = max(1, cf // 2)
+
+            chunks = []
+            for si in range(0, t, step):
+                ei = min(si + cf, t)
+                chunk = tensor[:, :, si:ei, :, :]
+                chunk_up = _upscale_tensor(chunk, w, h, method)
+                chunks.append((si, ei, chunk_up))
+
+            # 重叠区线性融合（用实际重叠帧数，绝不越界）
+            out = torch.zeros((b, c, t, h, w), dtype=tensor.dtype)
+            weight = torch.zeros((t,))
+            for si, ei, chunk_up in chunks:
+                n = ei - si
+                wt = torch.ones((n,))
+                # 关键：prev_ov 和 next_ov 都必须 <= n，否则 wt 切片越界
+                prev_ov = min(co, si, n) if si > 0 else 0
+                next_ov = min(co, t - ei, n) if ei < t else 0
+                if si > 0 and prev_ov > 0:
+                    fade = torch.linspace(0.0, 1.0, prev_ov)
+                    wt[:prev_ov] = wt[:prev_ov] * fade
+                if ei < t and next_ov > 0:
+                    fade = torch.linspace(1.0, 0.0, next_ov)
+                    wt[-next_ov:] = wt[-next_ov:] * fade
+                out[:, :, si:ei, :, :] += chunk_up * wt.view(1, 1, -1, 1, 1)
+                weight[si:ei] += wt
+                del chunk_up, wt
+
+            weight = weight.clamp(min=1e-6)
+            result = out / weight.view(1, 1, -1, 1, 1)
+            del out, weight, chunks
+            gc.collect()
+            return result
+
+        if getattr(z, "is_nested", False):
+            streams = list(z.unbind())
+            video = streams[0].to("cpu")  # 移到 CPU，放大不占显存
+            audio = streams[1].to("cpu") if len(streams) > 1 else None
+
+            b, c, t, h, w = video.shape
+            logging.info(f"【LatentUpscale】video shape: {video.shape}, target: {width}x{height}, chunking={bool(enable_chunking) and t > chunk_frames}")
+
+            video = _chunked_upscale(video, width, height, upscale_method, chunk_frames, chunk_overlap)
+
+            video = video.to(device)  # 放回显卡
+            if audio is not None:
+                audio = audio.to(device)
+                s["samples"] = NestedTensor((video, audio))
+            else:
+                s["samples"] = video
+        else:
+            z = z.to("cpu")
+            b, c, t, h, w = z.shape
+
+            z = _chunked_upscale(z, width, height, upscale_method, chunk_frames, chunk_overlap)
+
+            s["samples"] = z.to(device)
+
+        # 释放中间缓存
+        try:
+            comfy.model_management.soft_empty_cache(force=True)
+        except TypeError:
+            comfy.model_management.soft_empty_cache()
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+
+        return (s,)
+
+class UniversalSaveLatent(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UniversalSaveLatent",
+            display_name="Universal Save Latent",
+            category="MiniMax H3/Internal",
+            is_output_node=True,
+            inputs=[io.Latent.Input("samples"), io.String.Input("filename_prefix", default="universal_cache")],
+            outputs=[]
+        )
+    @classmethod
+    def execute(cls, samples, filename_prefix):
+        import os, torch, folder_paths
+        temp_dir = folder_paths.get_temp_directory()
+        path = os.path.join(temp_dir, f"{filename_prefix}.latent")
+        torch.save(samples, path)
+        return io.NodeOutput()
+
+class UniversalLoadLatent(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UniversalLoadLatent",
+            display_name="Universal Load Latent",
+            category="MiniMax H3/Internal",
+            inputs=[io.String.Input("filename_prefix", default="universal_cache")],
+            outputs=[io.Latent.Output()]
+        )
+    @classmethod
+    def execute(cls, filename_prefix):
+        import os, torch, folder_paths, gc
+        import comfy.model_management
+        gc.collect()
+        try:
+            comfy.model_management.soft_empty_cache(force=True)
+        except TypeError:
+            comfy.model_management.soft_empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        temp_dir = folder_paths.get_temp_directory()
+        path = os.path.join(temp_dir, f"{filename_prefix}.latent")
+        # 【兼容 PyTorch 2.6】因为是我们自己生成的临时缓存，显式关闭 weights_only
+        result = torch.load(path, weights_only=False)
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        return (result,)
+
