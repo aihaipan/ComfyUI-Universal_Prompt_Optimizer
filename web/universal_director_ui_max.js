@@ -1059,11 +1059,16 @@ function createPanel(node) {
         // - images: 有 @ 引用时为数组，否则为 null（= 用全部素材）
         let segmentsPayload = "";
         if (viewMode === "video") {
+            // 确保当前段的 media 是最新的
+            if (!segments[activeSegmentIndex].media) segments[activeSegmentIndex].media = {};
+            segments[activeSegmentIndex].media = Object.fromEntries(media.entries());
+            
             segmentsPayload = JSON.stringify({
                 segments: segments.map(s => ({
                     duration: s.duration,
                     prompt: s.cache?.result || s.original || "",
                     images: s.imageIndices,
+                    media_snapshot: s.media || {} // 【核心】把每段的素材池传给后端
                 })),
             });
         }
@@ -2076,8 +2081,8 @@ function createPanel(node) {
 
     const renderStoryboard = () => {
         try {
-            // 【L2-b】视频模式总显示时间线；图片模式隐藏
-            if (viewMode !== "video" || currentSubView !== "media") {
+            // 【L2-b】视频模式总显示时间线（包含 RefMod 模式）
+            if (viewMode !== "video") {
                 storyboard.style.display = "none";
                 return;
             }
@@ -2179,7 +2184,16 @@ function createPanel(node) {
                     seen.add(ord);
                     if (thumbs.childNodes.length >= 5) break;
                     const thumb = make("span"); thumb.className = "ghupo-tl-seg-thumb";
-                    const entry = resolveMedia("picture", ord);
+                    
+                    // 【核心修复】从该段独立的 media 快照中读取，而不是全局 resolveMedia
+                    const slotName = `ref_image_${ord}`;
+                    let entry = null;
+                    if (info.seg.media && info.seg.media[slotName]) {
+                        entry = info.seg.media[slotName];
+                    } else if (info.index === activeSegmentIndex) {
+                        entry = media.get(slotName); // 如果是当前激活段，用正在编辑的 media
+                    }
+                    
                     if (entry && entry.name) {
                         const img = make("img"); img.src = fileUrl(entry.name); img.draggable = false;
                         thumb.appendChild(img);
@@ -2500,6 +2514,10 @@ function createPanel(node) {
 
     let currentSubView = "media";  // "media" | "refmod"
 
+    // 【多段隔离】为 RefMod 保存独立的段数据
+    let refmodSegments = [{ id: "seg-0", duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null }];
+    let activeRefmodSegmentIndex = 0;
+
     function setSubView(sub) {
         if (sub !== "media" && sub !== "refmod") sub = "media";
         if (viewMode === "video" && sub !== currentSubView) {
@@ -2507,9 +2525,27 @@ function createPanel(node) {
             const oldSlot = currentSlot();
             if (promptState === "original") modeState[oldSlot].original = editorText();
             modeState[oldSlot].cache = optimizerCache;
+            
+            // 【多段隔离】切换前，把当前段数据存回对应的数组
+            if (currentSubView === "media") {
+                segments[activeSegmentIndex] = { ...segments[activeSegmentIndex], original: modeState.media?.original || modeState.video.original, cache: optimizerCache };
+            } else if (currentSubView === "refmod") {
+                refmodSegments[activeRefmodSegmentIndex] = { ...refmodSegments[activeRefmodSegmentIndex], original: modeState.refmod.original, cache: optimizerCache };
+            }
+
             // 2. 切换子 tab
             currentSubView = sub;
-            // 3. 加载新槽的编辑器内容
+            
+            // 3. 切换段数组
+            if (currentSubView === "refmod") {
+                segments = refmodSegments;
+                activeSegmentIndex = activeRefmodSegmentIndex;
+            } else {
+                segments = modeState.video.segments || segments; // 这里为了兼容旧逻辑，暂时保留原来变量
+                activeSegmentIndex = 0; 
+            }
+
+            // 4. 加载新槽的编辑器内容
             const newSlot = currentSlot();
             optimizerCache = modeState[newSlot].cache || null;
             promptState = optimizerCache?.result ? "optimized" : "original";
@@ -3022,7 +3058,7 @@ function createPanel(node) {
     // - imageIndices: null = 用全部；数组 = 0-based；永不 []
     // 镜像机制：modeState.video 永远是"当前激活段的镜像"。
     // 切换段时"先回写、再加载"，现有优化流程一行不用改。
-    let segments = [{ id: "seg-0", duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null }];
+    let segments = [{ id: "seg-0", duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null, media: {} }];
     let activeSegmentIndex = 0;
 
     // ---- 镜像同步：把 modeState.video / optimizerCache 的状态回写进当前段 ----
@@ -3088,12 +3124,33 @@ function createPanel(node) {
         if (viewMode !== "video") return;
         if (index === activeSegmentIndex) return;
         if (index < 0 || index >= segments.length) return;
-        // 【L2-c】切段时中止正在进行的优化，避免结果写到错误的段
         if (optimizerAbort) { try { optimizerAbort.abort(); } catch {} }
-        // 1. 回写当前段
+        
+        // 1. 回写当前段（包括把 media Map 存进当前段）
         if (promptState === "original") modeState.video.original = editorText();
         modeState.video.cache = optimizerCache;
         syncMirrorToSegment();
+        
+        // 【核心】保存当前段的素材池！
+        segments[activeSegmentIndex].media = Object.fromEntries(media.entries());
+
+        // 2. 切换索引
+        activeSegmentIndex = index;
+        
+        // 【核心】加载新段的素材池！
+        media.clear();
+        const newMediaObj = segments[index].media || {};
+        for (const [k, v] of Object.entries(newMediaObj)) {
+            media.set(k, v);
+        }
+        // 同步隐藏的 widget
+        for (const slot of ALL_SLOTS) {
+            const w = widget(node, slot);
+            if (w) w.value = media.get(slot)?.name || "";
+        }
+        render(); // 重绘素材区
+        
+        syncSegmentToMirror(index);
         // 2. 切换索引 + 加载新段
         activeSegmentIndex = index;
         syncSegmentToMirror(index);
@@ -3187,7 +3244,7 @@ function createPanel(node) {
         if (promptState === "original") modeState.video.original = editorText();
         modeState.video.cache = optimizerCache;
         syncMirrorToSegment();
-        const newSeg = { id: `seg-${Date.now()}`, duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null };
+        const newSeg = { id: `seg-${Date.now()}`, duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null, media: {} };
         const insertAt = activeSegmentIndex + 1;
         segments.splice(insertAt, 0, newSeg);
         switchSegment(insertAt);

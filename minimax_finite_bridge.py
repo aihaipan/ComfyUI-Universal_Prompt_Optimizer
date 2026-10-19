@@ -133,6 +133,7 @@ def _parse_segments_input(raw):
                 "duration": float(entry.get("duration", 0) or 0),
                 "prompt": str(entry.get("prompt") or "").strip(),
                 "images": entry.get("images"),
+                "media_snapshot": entry.get("media_snapshot"), # 【核心放行】
             })
         return normalized
 
@@ -317,7 +318,7 @@ class UniversalFiniteBridge(io.ComfyNode):
             sp_model = VERIFY_SECOND_PASS_MODEL
             sp_steps = VERIFY_SECOND_PASS_STEPS
         logging.info(
-            "Finite bridge second_pass: enabled=%s model=%s steps=%s",
+            "【Universal Director Console】 second_pass: enabled=%s model=%s steps=%s",
             sp_enabled, sp_model or "(default)", sp_steps,
         )
 
@@ -377,17 +378,30 @@ class UniversalFiniteBridge(io.ComfyNode):
         single_seg_duration = None
         if segments_spec is not None and len(segments_spec) == 1:
             _seg0 = segments_spec[0]
-            # 图片过滤
-            _idx = _seg0.get("images")
-            if isinstance(_idx, list) and _idx:
-                _filtered = [
-                    all_images[int(i)] for i in _idx
-                    if 0 <= int(i) < len(all_images)
+            # 【新增】优先使用单段的独立素材快照
+            _snap = _seg0.get("media_snapshot")
+            if isinstance(_snap, dict) and _snap:
+                valid_slots = [
+                    (k, v) for k, v in _snap.items() 
+                    if isinstance(v, dict) and v.get("name")
                 ]
+                valid_slots.sort(key=lambda x: int(x[0].split('_')[-1]) if x[0].split('_')[-1].isdigit() else 0)
+                _filtered = [{"file": str(v["name"]), "id": f"img-0-{k}"} for k, v in valid_slots]
                 if _filtered:
                     all_images = _filtered
+                    logging.info(f"【Universal Director Console】 Single segment using independent media: {len(all_images)} images")
+            else:
+                # 兼容旧逻辑（图片过滤）
+                _idx = _seg0.get("images")
+                if isinstance(_idx, list) and _idx:
+                    _filtered = [
+                        all_images[int(i)] for i in _idx
+                        if 0 <= int(i) < len(all_images)
+                    ]
+                    if _filtered:
+                        all_images = _filtered
                     logging.info(
-                        "Finite bridge single: filtered images to %d (from user references)",
+                        "【Universal Director Console】 single: filtered images to %d (from user references)",
                         len(_filtered),
                     )
             # 【时长同步】提取段时长，覆盖 bridge widget
@@ -398,7 +412,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                     if _d_val > 0:
                         single_seg_duration = _d_val
                         logging.info(
-                            "Finite bridge single: duration from segments_json = %.2fs (overrides widget %.2fs)",
+                            "【Universal Director Console】 single: duration from segments_json = %.2fs (overrides widget %.2fs)",
                             single_seg_duration, float(duration_sec or 5.0),
                         )
                 except (TypeError, ValueError):
@@ -458,7 +472,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                 all_images, all_audios, width, height, length, seconds, audio_mode
             )
             logging.info(
-                "Finite bridge (single): %d image(s), %d audio(s), %dx%d, %d frames",
+                "【Universal Director Console】 (single): %d image(s), %d audio(s), %dx%d, %d frames",
                 len(all_images), len(all_audios), width, height, length,
             )
             return io.NodeOutput(finite_plan, summary)
@@ -493,15 +507,32 @@ class UniversalFiniteBridge(io.ComfyNode):
             seg_prompt = str(seg.get("prompt") or prompt_text).strip()
             seg_length = _aligned_h3_length(seg_dur)
 
-            img_indices = seg.get("images")
-            if isinstance(img_indices, list):
-                seg_images = [
-                    all_images[int(i)]
-                    for i in img_indices
-                    if 0 <= int(i) < len(all_images)
+            # 【核心修复】优先使用该段独立的素材池快照
+            seg_media_snapshot = seg.get("media_snapshot")
+            if isinstance(seg_media_snapshot, dict) and seg_media_snapshot:
+                # 提取有效路径，并按 ref_image_N 的数字排序，保证顺序不乱
+                valid_slots = [
+                    (k, v) for k, v in seg_media_snapshot.items() 
+                    if isinstance(v, dict) and v.get("name")
                 ]
+                valid_slots.sort(key=lambda x: int(x[0].split('_')[-1]) if x[0].split('_')[-1].isdigit() else 0)
+                
+                seg_images = [
+                    {"file": str(v["name"]), "id": f"img-{idx}-{k}"}
+                    for k, v in valid_slots
+                ]
+                logging.info(f"【Universal Director Console】 Segment {idx+1} using independent media: {len(seg_images)} images")
             else:
-                seg_images = list(all_images)
+                # 兼容旧逻辑
+                img_indices = seg.get("images")
+                if isinstance(img_indices, list):
+                    seg_images = [
+                        all_images[int(i)]
+                        for i in img_indices
+                        if 0 <= int(i) < len(all_images)
+                    ]
+                else:
+                    seg_images = list(all_images)
 
             # 【L2-d】段起点 = 上一段终点 - 该段重叠帧（第一段为0）
             seg_ov = _seg_overlap(idx)
@@ -561,7 +592,7 @@ class UniversalFiniteBridge(io.ComfyNode):
             overlaps=seg_overlaps,
         )
         logging.info(
-            "Finite bridge (multi): %d segment(s), %d image(s), %d audio(s), %dx%d, total %d frames",
+            "【Universal Director Console】 (multi): %d segment(s), %d image(s), %d audio(s), %dx%d, total %d frames",
             len(seg_plans), len(all_images), len(all_audios), width, height, previous_end_frame,
         )
         return io.NodeOutput(finite_plan, summary)
