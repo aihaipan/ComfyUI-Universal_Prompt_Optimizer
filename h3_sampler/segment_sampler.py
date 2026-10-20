@@ -1509,7 +1509,7 @@ class UniversalSegmentSampler(io.ComfyNode):
                 upscale_method="nearest-exact",
                 width=target_w,
                 height=target_h,
-                model=model,
+                model=refine_model,
             )
 
             from comfy_extras.nodes_custom_sampler import BasicScheduler
@@ -1593,7 +1593,7 @@ class UniversalSegmentSampler(io.ComfyNode):
             last_sampled = sampled.out(0)
 
         target_output_frames = int(finite.get("target_output_frames") or 0)
-        if target_output_frames > 0:
+        if target_output_frames > 0 and exec_mode != "pass1":
             output_trim = graph.node(
                 "UniversalH3FiniteOutputTrim", id="trim_auto_segment_output",
                 images=merged_images, audio=merged_audio,
@@ -1723,6 +1723,10 @@ class UniversalH3LatentUpscale(io.ComfyNode):
         z = s["samples"]
         device = z.device if hasattr(z, "device") else "cuda"
 
+        # H3 视频宽高使用像素单位；latent 空间尺寸按 8 倍压缩换算
+        latent_width = max(1, int(width) // 8)
+        latent_height = max(1, int(height) // 8)
+
         if getattr(z, "is_nested", False):
             streams = list(z.unbind())
             video = streams[0]
@@ -1738,13 +1742,13 @@ class UniversalH3LatentUpscale(io.ComfyNode):
                 )
                 video_cpu = comfy.utils.common_upscale(
                     video_cpu,
-                    width,
-                    height,
+                    latent_width,
+                    latent_height,
                     upscale_method,
                     "disabled",
                 )
                 video = (
-                    video_cpu.reshape(b, t, c, height, width)
+                    video_cpu.reshape(b, t, c, latent_height, latent_width)
                     .movedim(2, 1)
                     .to(device)
                 )
@@ -1765,13 +1769,13 @@ class UniversalH3LatentUpscale(io.ComfyNode):
                 )
                 video_cpu = comfy.utils.common_upscale(
                     video_cpu,
-                    width,
-                    height,
+                    latent_width,
+                    latent_height,
                     upscale_method,
                     "disabled",
                 )
                 s["samples"] = (
-                    video_cpu.reshape(b, t, c, height, width)
+                    video_cpu.reshape(b, t, c, latent_height, latent_width)
                     .movedim(2, 1)
                     .to(device)
                 )
