@@ -505,10 +505,16 @@ function createPanel(node) {
     overlapRow.style.cssText = "display:flex;align-items:center;gap:8px;width:100%;margin-top:4px;";
     overlapRow.append(make("span", {}, "段间重叠"), overlapInput);
 
-    const execModeSelect = make("select");
-    execModeSelect.className = "ghupo-duration-input";
-    execModeSelect.style.flex = "1";
-    execModeSelect.innerHTML = `<option value="full">全自动 (一采+二采)</option><option value="pass1">仅一采 (生成缓存)</option><option value="pass2">仅二采 (读取缓存)</option>`;
+    const splitRunCheck = make("input");
+    splitRunCheck.type = "checkbox";
+    splitRunCheck.style.margin = "0";
+    const splitRunToggle = make("label");
+    splitRunToggle.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-weight:bold;color:#0aa4d6;";
+    splitRunToggle.append(splitRunCheck, make("span", {}, "分两次运行"));
+    const splitStageSelect = make("select");
+    splitStageSelect.className = "ghupo-duration-input";
+    splitStageSelect.style.flex = "1";
+    splitStageSelect.innerHTML = `<option value="pass1">第 1 次：一采并保存缓存</option><option value="pass2">第 2 次：读取缓存并二采</option>`;
     
     const spRow = make("div");
     spRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:4px;";
@@ -528,9 +534,36 @@ function createPanel(node) {
     spRow.append(spToggle, spModeSelect, spModelSelect, spStepsWrap);
     const execRow = make("div");
     execRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:4px;";
-    execRow.append(make("span", {}, "显存调度"), execModeSelect);
+    execRow.append(splitRunToggle, splitStageSelect);
+    const splitRunHint = make("span", {}, "分步运行仅适用于 Refine；SelfLift 只支持全自动。");
+    splitRunHint.style.cssText = "display:block;color:#8697a7;font-size:11px;margin-left:4px;";
 
-    dirAdvancedPanel.append(audioRow, overlapRow, spRow, execRow);
+    const updateSplitRunControls = () => {
+        const canSplit = spCheck.checked && spModeSelect.value === "refine";
+        splitRunCheck.disabled = !canSplit;
+        if (!canSplit) splitRunCheck.checked = false;
+        splitStageSelect.style.display = canSplit && splitRunCheck.checked ? "" : "none";
+        splitRunHint.style.display = canSplit ? "none" : "";
+        splitRunHint.textContent = !spCheck.checked
+            ? "开启二采后可选择分步运行。"
+            : "SelfLift 只支持全自动；分步运行请切换到 Refine。";
+    };
+
+    const selectedExecMode = () => (
+        spCheck.checked && spModeSelect.value === "refine" && splitRunCheck.checked
+            ? splitStageSelect.value
+            : "full"
+    );
+
+    dirAdvancedPanel.append(audioRow, overlapRow, spRow, execRow, splitRunHint);
+
+    [spCheck, spModeSelect, splitRunCheck, splitStageSelect].forEach(control => {
+        control.addEventListener("change", () => {
+            updateSplitRunControls();
+            if (typeof persist === "function") persist();
+        });
+    });
+    updateSplitRunControls();
 
     // 获取二采模型列表
     fetch("/minimax-bridge/upscalers").then(r => r.json()).then(data => {
@@ -1051,7 +1084,7 @@ function createPanel(node) {
             dirSecondPassModel: spModelSelect.value,
             dirSecondPassSteps: parseInt(spStepsInput.value, 10) || 2,
             dirSecondPassMode: spModeSelect.value,
-            dirExecMode: execModeSelect.value,
+            dirExecMode: selectedExecMode(),
             dirAudioMode: audioSelect.value,
             dirBridgeOverlaps: overlapInput.value,
         });
@@ -4412,11 +4445,17 @@ function createPanel(node) {
                 if (restored.dirSteps) stepsInput.value = restored.dirSteps;
                 if (restored.dirSecondPass !== undefined) spCheck.checked = restored.dirSecondPass;
                 if (restored.dirSecondPassModel) spModelSelect.value = restored.dirSecondPassModel;
-                if (restored.dirExecMode) execModeSelect.value = restored.dirExecMode;
+                if (restored.dirExecMode === "pass1" || restored.dirExecMode === "pass2") {
+                    splitRunCheck.checked = true;
+                    splitStageSelect.value = restored.dirExecMode;
+                } else {
+                    splitRunCheck.checked = false;
+                }
                 if (restored.dirSecondPassSteps) spStepsInput.value = restored.dirSecondPassSteps;
                 if (restored.dirSecondPassMode) spModeSelect.value = restored.dirSecondPassMode;
                 if (restored.dirAudioMode) audioSelect.value = restored.dirAudioMode;
                 if (restored.dirBridgeOverlaps !== undefined) overlapInput.value = restored.dirBridgeOverlaps;
+                updateSplitRunControls();
                 if (Number.isFinite(restored.height)) {
                     userHeight = restored.height;
                     const currentWidth = this.size?.[0] || WIDTH;

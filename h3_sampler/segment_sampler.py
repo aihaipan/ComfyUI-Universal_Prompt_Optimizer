@@ -1803,4 +1803,3 @@ class UniversalLoadLatent(io.ComfyNode):
         path = os.path.join(temp_dir, f"{filename_prefix}.latent")
         # 纯净读取
         return (torch.load(path, weights_only=False),)
-
