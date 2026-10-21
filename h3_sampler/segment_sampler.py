@@ -1479,33 +1479,39 @@ class UniversalSegmentSampler(io.ComfyNode):
                             filename_prefix=f"universal_cache_seg_{number}"
                         )
 
-            # 3. 二采精修阶段（纯净版，不再剥离任何参考图）
+            # 3. 二采精修阶段
             if second_pass and second_pass_mode == "refine" and exec_mode != "pass1":
-                target_w = (int(width * 1.0) // 32) * 32
-                target_h = (int(height * 1.0) // 32) * 32
+                target_w = (int(width) // 32) * 32
+                target_h = (int(height) // 32) * 32
                 logging.info(f"【UniversalDirectorConsole】Refine[HD]: Refining segment {number} at {target_w}x{target_h}")
-                
                 upscaled = graph.node(
-                    "UniversalH3LatentUpscale", id=f"upscale_{number}",
+                    "UniversalH3LatentUpscale",
+                    id=f"upscale_{number}",
                     samples=sampled.out(0),
                     upscale_method="nearest-exact",
                     width=target_w,
                     height=target_h,
+                    model=model,
                 )
 
                 from comfy_extras.nodes_custom_sampler import BasicScheduler
+
                 refine_steps = int(second_pass_high_steps) if second_pass_high_steps > 0 else 3
                 refine_sigmas = BasicScheduler().get_sigmas(model, "simple", refine_steps, 0.5)[0]
-                
                 noise2 = graph.node("RandomNoise", id=f"noise2_{number}", noise_seed=int(seed) + 1)
-                
-                # 使用原生的 model 和完整的 encoder 条件
-                guider2 = graph.node("BasicGuider", id=f"guider2_{number}", model=model, conditioning=encoder.out(0))
-                
+                guider2 = graph.node(
+                    "BasicGuider",
+                    id=f"guider2_{number}",
+                    model=upscaled.out(1),
+                    conditioning=encoder.out(0),
+                )
                 sampled = graph.node(
-                    "SamplerCustomAdvanced", id=f"sample_refine_{number}", 
-                    noise=noise2.out(0), guider=guider2.out(0), 
-                    sampler=sampler, sigmas=refine_sigmas,
+                    "SamplerCustomAdvanced",
+                    id=f"sample_refine_{number}",
+                    noise=noise2.out(0),
+                    guider=guider2.out(0),
+                    sampler=sampler,
+                    sigmas=refine_sigmas,
                     latent_image=upscaled.out(0),
                 )
 
@@ -1550,7 +1556,7 @@ class UniversalSegmentSampler(io.ComfyNode):
             last_sampled = sampled.out(0)
 
         target_output_frames = int(finite.get("target_output_frames") or 0)
-        if target_output_frames > 0:
+        if target_output_frames > 0 and exec_mode != "pass1":
             output_trim = graph.node(
                 "UniversalH3FiniteOutputTrim", id="trim_auto_segment_output",
                 images=merged_images, audio=merged_audio,
@@ -1641,6 +1647,7 @@ class UniversalSegmentSampler(io.ComfyNode):
             last_sampled, merged_images, merged_audio, status, video_node.out(0), expand=graph.finalize()
         )
     
+
 class UniversalH3LatentUpscale(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -1650,52 +1657,115 @@ class UniversalH3LatentUpscale(io.ComfyNode):
             category="MiniMax H3/Internal",
             inputs=[
                 io.Latent.Input("samples"),
-                io.Combo.Input("upscale_method", options=["nearest-exact", "bilinear", "area", "bicubic"], default="nearest-exact"),
+                io.Combo.Input(
+                    "upscale_method",
+                    options=["nearest-exact", "bilinear", "area", "bicubic"],
+                    default="nearest-exact",
+                ),
                 io.Int.Input("width", default=864),
                 io.Int.Input("height", default=480),
+                io.Model.Input("model"),
             ],
-            outputs=[io.Latent.Output()]
+            outputs=[
+                io.Latent.Output(),
+                io.Model.Output(),
+            ],
         )
+
     @classmethod
-    def execute(cls, samples, upscale_method, width, height):
+    def execute(cls, samples, upscale_method, width, height, model):
         import torch
         import comfy.utils
         from comfy.nested_tensor import NestedTensor
         
         s = samples.copy()
-        
-        # 【最核心的一击】直接砍掉 noise_mask，彻底切断广播爆炸的可能！
         s.pop("noise_mask", None)
-        
+
         z = s["samples"]
-        device = z.device if hasattr(z, 'device') else "cuda"
-        
+        device = z.device if hasattr(z, "device") else "cuda"
+        latent_width = max(1, int(width) // 8)
+        latent_height = max(1, int(height) // 8)
+
         if getattr(z, "is_nested", False):
             streams = list(z.unbind())
             video = streams[0]
             audio = streams[1] if len(streams) > 1 else None
-            
-            # 视频放大，音频直接保留
             if video.ndim == 5:
                 b, c, t, h, w = video.shape
-                video_cpu = video.to("cpu").movedim(2, 1).reshape(b * t, c, h, w)
-                video_cpu = comfy.utils.common_upscale(video_cpu, width, height, upscale_method, "disabled")
-                video = video_cpu.reshape(b, t, c, height, width).movedim(2, 1).to(device)
-            
+                video_cpu = (
+                    video.to("cpu")
+                    .movedim(2, 1)
+                    .reshape(b * t, c, h, w)
+                )
+                video_cpu = comfy.utils.common_upscale(
+                    video_cpu,
+                    latent_width,
+                    latent_height,
+                    upscale_method,
+                    "disabled",
+                )
+                video = (
+                    video_cpu.reshape(b, t, c, latent_height, latent_width)
+                    .movedim(2, 1)
+                    .to(device)
+                )
+                del video_cpu
+
             if audio is not None:
                 s["samples"] = NestedTensor((video, audio))
             else:
                 s["samples"] = video
+
         else:
             if z.ndim == 5:
                 b, c, t, h, w = z.shape
-                z_cpu = z.to("cpu").movedim(2, 1).reshape(b * t, c, h, w)
-                z_cpu = comfy.utils.common_upscale(z_cpu, width, height, upscale_method, "disabled")
-                s["samples"] = z_cpu.reshape(b, t, c, height, width).movedim(2, 1).to(device)
-            else:
-                s["samples"] = z
-                
-        return (s,)
+                video_cpu = (
+                    z.to("cpu")
+                    .movedim(2, 1)
+                    .reshape(b * t, c, h, w)
+                )
+                video_cpu = comfy.utils.common_upscale(
+                    video_cpu,
+                    latent_width,
+                    latent_height,
+                    upscale_method,
+                    "disabled",
+                )
+                s["samples"] = (
+                    video_cpu.reshape(b, t, c, latent_height, latent_width)
+                    .movedim(2, 1)
+                    .to(device)
+                )
+                del video_cpu
+
+        try:
+            import comfy.model_management as model_management
+
+            model_management.unload_all_models()
+            try:
+                model_management.soft_empty_cache(force=True)
+            except TypeError:
+                model_management.soft_empty_cache()
+        except Exception as e:
+            logging.warning(
+                "【UniversalDirectorConsole】Refine 显存清理警告: %s",
+                e,
+            )
+
+        # 回收 Python 不再使用的对象
+        gc.collect()
+
+        # 清理 CUDA 缓存；仍被引用的张量不会因此被强行释放
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception as e:
+            logging.warning(
+                "【UniversalDirectorConsole】CUDA 缓存清理警告: %s",
+                e,
+            )
+
+        return io.NodeOutput(s, model)
 
 class UniversalSaveLatent(io.ComfyNode):
     @classmethod
