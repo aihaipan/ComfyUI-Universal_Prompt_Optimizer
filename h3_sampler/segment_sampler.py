@@ -1336,6 +1336,7 @@ class UniversalSegmentSampler(io.ComfyNode):
         refine_scale=0.5, refine_tile_count=1, refine_tile_overlap=64,
         refine_chunk_frames=24, refine_chunk_overlap=8,
         vram_tier="normal",
+        refine_width=None, refine_height=None,
     ):
         from . import inject_internal_nodes
         inject_internal_nodes()  # 动态注入，解决 GraphBuilder 找不到节点的问题
@@ -1409,6 +1410,21 @@ class UniversalSegmentSampler(io.ComfyNode):
             )
             if second_pass else None
         )
+        second_pass_label = (
+            "Refine[高清]"
+            if second_pass_mode == "refine"
+            else "SelfLift[极速]"
+        )
+        execution_mode_label = {
+            "pass1": "分步第 1 次（一采并保存缓存）",
+            "pass2": "分步第 2 次（读取缓存并二采）",
+        }.get(exec_mode, "全自动（一采+二采）")
+        if second_pass:
+            logging.info(
+                "【UniversalDirectorConsole】二采模式：%s；运行方式：%s",
+                second_pass_label,
+                execution_mode_label,
+            )
 
         for index, prompt in enumerate(finite["prompts"]):
             number = index + 1
@@ -1452,6 +1468,13 @@ class UniversalSegmentSampler(io.ComfyNode):
                 active_model = continuation.out(3)
 
                 if second_pass and second_pass_mode == "selflift":
+                    logging.info(
+                        "【UniversalDirectorConsole】SelfLift[极速]: "
+                        "SelfLifting segment %d at %dx%d (low-resolution stage: 50%%)",
+                        number,
+                        int(width),
+                        int(height),
+                    )
                     sampled = graph.node(
                         "UniversalH3TimelineSelfLiftSampler", id=f"sample_selflift_{number}",
                         model=active_model, positive=continuation.out(0),
@@ -1481,9 +1504,19 @@ class UniversalSegmentSampler(io.ComfyNode):
 
             # 3. 二采精修阶段
             if second_pass and second_pass_mode == "refine" and exec_mode != "pass1":
-                target_w = (int(width) // 32) * 32
-                target_h = (int(height) // 32) * 32
-                logging.info(f"【UniversalDirectorConsole】Refine[HD]: Refining segment {number} at {target_w}x{target_h}")
+                requested_refine_width = int(refine_width or width)
+                requested_refine_height = int(refine_height or height)
+                target_w = max(32, (requested_refine_width // 32) * 32)
+                target_h = max(32, (requested_refine_height // 32) * 32)
+                logging.info(
+                    "【UniversalDirectorConsole】Refine[高清]: "
+                    "Refining segment %d from %dx%d to %dx%d",
+                    number,
+                    int(width),
+                    int(height),
+                    target_w,
+                    target_h,
+                )
                 upscaled = graph.node(
                     "UniversalH3LatentUpscale",
                     id=f"upscale_{number}",

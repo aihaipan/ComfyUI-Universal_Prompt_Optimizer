@@ -186,13 +186,59 @@ function createPanel(node) {
         .ghupo-audio{aspect-ratio:1}
         .ghupo-audio .ghupo-card-name{font-size:7px;padding-left:3px}
         .ghupo-audio-icon{display:flex;align-items:center;justify-content:center;height:100%;color:#0aa4d6;font-size:48px;background:linear-gradient(135deg,#14222d 0%,#1a3040 100%)}
-        .ghupo-tools{display:flex;align-items:center;gap:4px;padding:2px 4px;background:#1d2731;border-radius:6px;height:22px}
+        .ghupo-tools{display:flex;align-items:center;gap:7px;padding:5px 7px;background:#14202c;border:1px solid #2c4255;border-radius:7px;min-height:30px;box-sizing:border-box;flex-wrap:wrap}
+        .ghupo-tools>.ghupo-duration{height:auto;min-height:34px;margin-right:0;padding:2px 4px;gap:4px;box-sizing:border-box}
         .ghupo-template{max-width:112px;height:17px;padding:0 2px;border:1px solid #2c4255;border-radius:3px;background:#14202c;color:#a9bac8;font:9px/15px Arial,sans-serif;outline:none;cursor:pointer}
-        .ghupo-tool{height:17px;min-width:17px;padding:0 3px;border:0;border-radius:3px;background:#1d2731;color:#6f8291;font:11px/17px Arial,sans-serif;cursor:pointer;opacity:.72}
-        .ghupo-tool:hover{color:#9aabb8;background:#24323e}
-        .ghupo-tool:disabled{opacity:.25;cursor:not-allowed}
         .ghupo-elapsed{display:none;color:#617684;font:9px/17px Arial,sans-serif}
         .ghupo-elapsed.visible{display:inline-block}
+        .ghupo-advanced{border:1px solid #2c4255;border-radius:7px;background:#111c27;overflow:hidden;flex-shrink:0}
+        .ghupo-advanced-summary{display:flex;align-items:center;gap:8px;min-height:30px;padding:0 9px;color:#b8c8d4;font-size:11px;font-weight:600;cursor:pointer;list-style:none}
+        .ghupo-advanced-summary::-webkit-details-marker{display:none}
+        .ghupo-advanced-summary:before{content:"▸";color:#7f98a8;transition:transform .15s}
+        .ghupo-advanced[open]>.ghupo-advanced-summary:before{transform:rotate(90deg)}
+        .ghupo-advanced-status{margin-left:auto;color:#718797;font-size:10px;font-weight:400}
+        .ghupo-advanced-content{display:flex;flex-direction:column;gap:8px;padding:8px;background:#111c27;border-top:1px solid #2c4255}
+        .ghupo-advanced-section{display:flex;flex-direction:column;gap:7px;padding:8px;border:1px solid #2c4255;border-radius:6px}
+        .ghupo-audio-section{background:#17232e}
+        .ghupo-upscale-section{background:linear-gradient(135deg,rgba(10,164,214,.13),rgba(8,125,165,.06));border-color:#087da5}
+        .ghupo-tools select,.ghupo-advanced select{height:30px;min-height:30px;box-sizing:border-box;background-color:#1a2a38;color:#dce7ee;border:1px solid #2c5368;border-radius:4px;padding:3px 7px;outline:none;font:12px/20px Arial,sans-serif}
+        .ghupo-tools input.ghupo-duration-input[type="number"],.ghupo-advanced input.ghupo-duration-input[type="number"]{height:28px;min-height:28px;box-sizing:border-box;padding:3px 5px;border:1px solid #2c5368;border-radius:4px;background:#1a2a38;color:#dce7ee;font:12px/20px Arial,sans-serif;text-align:center;outline:none}
+        .ghupo-tools input.ghupo-duration-input[type="number"]:focus,.ghupo-advanced input.ghupo-duration-input[type="number"]:focus{border-color:#0aa4d6;box-shadow:0 0 0 1px rgba(10,164,214,.25)}
+        .ghupo-tools select:focus,.ghupo-advanced select:focus{border-color:#0aa4d6;box-shadow:0 0 0 1px rgba(10,164,214,.25)}
+        .ghupo-tools select option,.ghupo-advanced select option{background:#1a2a38;color:#dce7ee}
+        .ghupo-tools select option:hover,.ghupo-tools select option:checked,.ghupo-advanced select option:hover,.ghupo-advanced select option:checked{background:#0aa4d6;color:#06131b}
+        .ghupo-advanced-section-title{font-size:10px;font-weight:700;color:#9aabb8}
+        .ghupo-upscale-section>.ghupo-advanced-section-title{color:#45c9ef}
+        .ghupo-audio-row,.ghupo-upscale-model-row{display:flex;align-items:center;gap:8px;min-width:0}
+        .ghupo-audio-row select,.ghupo-upscale-model-row select{flex:1;min-width:0}
+        .ghupo-upscale-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;min-height:38px}
+        .ghupo-upscale-toggle{color:#45c9ef!important}
+        .ghupo-upscale-mode{flex:1 1 120px;min-width:110px}
+        .ghupo-upscale-steps{display:flex;align-items:center;gap:4px;white-space:nowrap}
+        .ghupo-upscale-steps input{width:44px}
+        .ghupo-refine-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-height:36px;padding:6px 8px;border:1px solid rgba(10,164,214,.45);border-radius:5px;background:rgba(10,164,214,.07);box-sizing:border-box}
+        .ghupo-refine-mp{display:flex;align-items:center;gap:4px;white-space:nowrap}
+        .ghupo-refine-mp input{width:58px}
+        .ghupo-refine-resolution{color:#8697a7;font-size:10px;white-space:nowrap}
+        .ghupo-split-toggle{display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;color:#45c9ef}
+        .ghupo-split-stage{flex:1 1 150px;min-width:140px}
+        .ghupo-upscale-model-row>span{flex:0 0 auto;color:#9aabb8}
+        .ghupo-prompt-toolbar{display:flex;align-items:center;gap:7px;min-height:34px;padding:3px 5px;flex-shrink:0}
+        .ghupo-prompt-title{flex:0 0 auto;color:#d7e3ef;font-size:12px;font-weight:700;white-space:nowrap}
+        .ghupo-prompt-hint{flex:1;min-width:0;overflow:hidden;color:#718797;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+        .ghupo-prompt-actions{display:flex;align-items:center;gap:5px;margin-left:auto;flex:0 0 auto}
+        .ghupo-prompt-actions .ghupo-elapsed{min-width:48px;text-align:right;color:#45c9ef;font:10px/1.3 Arial,sans-serif;white-space:nowrap}
+        .ghupo-prompt-action{height:27px;padding:0 9px;border:1px solid #334a5d;border-radius:5px;background:#192734;color:#9aabb8;font:11px Arial,sans-serif;cursor:pointer;white-space:nowrap}
+        .ghupo-prompt-action:hover{border-color:#4c7187;background:#203240;color:#e1e9ef}
+        .ghupo-prompt-action.ghupo-optimize{position:relative;isolation:isolate;overflow:hidden;border-color:transparent;background:transparent;color:#fff;font-weight:700;box-shadow:0 2px 8px rgba(10,164,214,.2)}
+        .ghupo-prompt-action.ghupo-optimize:after{content:"";position:absolute;inset:0;z-index:-1;border-radius:4px;background:linear-gradient(180deg,#0da9d7,#087da5)}
+        .ghupo-prompt-action.ghupo-optimize.ghupo-loading:before{content:"";position:absolute;inset:-100%;z-index:-2;background:conic-gradient(from 0deg,transparent 0 68%,#62e5ff 80%,#0aa4d6 92%,transparent 100%);animation:ghupo-spin 1.8s linear infinite}
+        .ghupo-prompt-action.ghupo-optimize.ghupo-loading:after{inset:1px;background:#087da5}
+        .ghupo-optimize-content{position:relative;z-index:1;display:inline-flex;align-items:center;gap:5px}
+        .ghupo-optimize-icon{display:inline-block}
+        .ghupo-prompt-action.ghupo-optimize.ghupo-loading .ghupo-optimize-icon{animation:ghupo-spin 1.4s linear infinite}
+        .ghupo-prompt-action.ghupo-optimize:hover:after{background:linear-gradient(180deg,#19b9e8,#0a91bc)}
+        .ghupo-prompt-action:disabled{opacity:.45;cursor:not-allowed}
         .ghupo-duration{display:inline-flex;align-items:center;height:17px;background:#14202c;border:1px solid #2c4255;border-radius:3px;padding:0 2px;font:9px/15px Arial,sans-serif;gap:1px;margin-right:auto}
         .ghupo-duration-label{color:#6f8291;padding:0 2px;white-space:nowrap}
         .ghupo-duration-input{width:24px;height:15px;background:transparent;border:0;color:#cdf0f7;text-align:center;font:9px/15px Arial,sans-serif;outline:none;padding:0;-moz-appearance:textfield;cursor:ew-resize}
@@ -200,10 +246,13 @@ function createPanel(node) {
         .ghupo-duration-btn{width:12px;height:15px;padding:0;border:0;background:transparent;color:#6f8291;font:11px/15px Arial,sans-serif;cursor:pointer;user-select:none}
         .ghupo-duration-btn:hover{color:#cdf0f7}
         .ghupo-duration-unit{color:#6f8291;padding:0 2px;white-space:nowrap}
-        .ghupo-model{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:rgba(96,116,130,.6);font:8px/17px Arial,sans-serif;margin-left:auto}
-        .ghupo-loading{color:#0aa4d6!important;opacity:1!important;animation:ghupo-spin 1.6s linear infinite}
+        .ghupo-model{min-width:50px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:rgba(96,116,130,.6);font:8px/17px Arial,sans-serif;margin-left:auto}
+        .ghupo-loading{color:#0aa4d6!important;opacity:1!important}
         @keyframes ghupo-spin{to{transform:rotate(360deg)}}
-        .ghupo-prompt-wrap{flex:1;position:relative;width:100%;min-height:0;overflow:hidden;background:#1d2731;border-radius:6px}
+        .ghupo-prompt-wrap{flex:1;position:relative;width:100%;min-height:0;overflow:hidden;background:#1d2731;border:1px solid #2c4255;border-radius:6px;box-sizing:border-box;isolation:isolate}
+        .ghupo-prompt-wrap.is-optimizing:before{content:"";position:absolute;inset:-50%;z-index:0;background:conic-gradient(from 0deg,transparent 0 68%,#62e5ff 80%,#0aa4d6 92%,transparent 100%);animation:ghupo-spin 2.4s linear infinite;pointer-events:none}
+        .ghupo-prompt-wrap.is-optimizing:after{content:"";position:absolute;inset:1px;z-index:0;border-radius:5px;background:#1d2731;pointer-events:none}
+        .ghupo-prompt{z-index:1}
         /* 【进度条】双条：总进度（蓝）+ 本段进度（绿） */
         .ghupo-progress-panel{display:none;flex-direction:column;gap:5px;padding:8px 10px;background:#0f1a24;border:1px solid #2c4255;border-radius:6px;flex-shrink:0}
         .ghupo-progress-panel.visible{display:flex}
@@ -283,6 +332,12 @@ function createPanel(node) {
         .ghupo-sb-header:hover{background:#1f3140}
         .ghupo-sb-title{color:#cdf0f7;font-weight:600}
         .ghupo-sb-meta{color:#6f8291;font-size:9px;margin-left:auto}
+        .ghupo-sb-overlap{display:flex;align-items:center;gap:5px;margin-left:4px;padding-left:8px;border-left:1px solid #334a5d;color:#8397a6;font-size:10px;white-space:nowrap}
+        .ghupo-sb-overlap .ghupo-duration-input{width:108px;height:20px;padding:0 5px;border:1px solid #334a5d;border-radius:4px;background:#101b26;color:#cbd8e1;font:10px Arial;box-sizing:border-box;flex:0 0 108px}
+        .ghupo-sb-overlap .ghupo-duration-input:focus{border-color:#0aa4d6;outline:none}
+        .ghupo-sb-duration{margin:0 2px 0 5px;flex:0 0 auto}
+        .ghupo-sb-duration .ghupo-duration-input{cursor:text}
+        @media (max-width:560px){.ghupo-sb-header{flex-wrap:wrap}.ghupo-sb-meta{margin-left:auto}.ghupo-sb-overlap{order:5;margin:2px 0 2px 18px;padding-left:0;border-left:0}.ghupo-tools{flex-wrap:wrap;height:auto}}
         .ghupo-sb-toggle{color:#6f8291;font-size:11px;padding:0 2px;min-width:12px;text-align:center}
         .ghupo-sb-body{padding:0;overflow-x:auto;overflow-y:hidden;position:relative;scrollbar-width:thin;scrollbar-color:#3a5364 #0f1a24}
         .ghupo-sb-body::-webkit-scrollbar{height:10px}
@@ -311,7 +366,7 @@ function createPanel(node) {
         .ghupo-tl-seg:hover .ghupo-tl-seg-del{display:block}
         .ghupo-tl-seg-del:hover{background:#ff5b5b;color:#fff}
         /* 【L2-b】标题栏"加段"按钮 */
-        .ghupo-sb-add{height:18px;padding:0 8px;border:1px solid #2c4255;border-radius:3px;background:#1a2a38;color:#cdf0f7;font:10px/16px Arial;cursor:pointer;margin-left:8px}
+        .ghupo-sb-add{height:22px;padding:0 9px;border:1px solid #2c4255;border-radius:4px;background:#1a2a38;color:#cdf0f7;font:10px/20px Arial;cursor:pointer;margin-left:2px}
         .ghupo-sb-add:hover{background:#24475a;border-color:#0aa4d6}
         .ghupo-sb-shot{flex-shrink:0;display:flex;flex-direction:column;gap:2px;align-items:center;padding:2px 3px;background:#14222d;border:1px solid #233a4a;border-radius:4px;min-width:28px}
         .ghupo-sb-thumbs{display:flex;gap:1px;flex-wrap:wrap;justify-content:center;max-width:64px}
@@ -444,16 +499,18 @@ function createPanel(node) {
     const dirSizeGroup = make("span"); dirSizeGroup.className = "ghupo-duration";
     const arSelect = make("select"); arSelect.className = "ghupo-duration-input"; arSelect.style.width = "50px";
     arSelect.innerHTML = `<option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option>`;
-    const mpInput = make("input"); mpInput.type = "number"; mpInput.step = "0.1"; mpInput.value = "0.4"; mpInput.className = "ghupo-duration-input"; mpInput.style.width = "30px"; mpInput.title = "百万像素";
+    const mpInput = make("input"); mpInput.type = "number"; mpInput.step = "0.1"; mpInput.value = "0.4"; mpInput.className = "ghupo-duration-input"; mpInput.style.width = "48px"; mpInput.title = "百万像素";
+    const refineMPInput = make("input"); refineMPInput.type = "number"; refineMPInput.min = "0.1"; refineMPInput.step = "0.1"; refineMPInput.value = mpInput.value; refineMPInput.className = "ghupo-duration-input"; refineMPInput.style.width = "58px"; refineMPInput.title = "Refine 二采目标百万像素，默认为一采分辨率";
     
     // 【新增】一采步数
-    const stepsInput = make("input"); stepsInput.type = "number"; stepsInput.value = "8"; stepsInput.className = "ghupo-duration-input"; stepsInput.style.width = "30px"; stepsInput.title = "一采步数";
+    const stepsInput = make("input"); stepsInput.type = "number"; stepsInput.value = "8"; stepsInput.className = "ghupo-duration-input"; stepsInput.style.width = "42px"; stepsInput.title = "一采步数";
     
-    const calcDimensions = () => {
+    const calcDimensions = (requestedMP = parseFloat(mpInput.value)) => {
         const ar = arSelect.value.split(":");
         const wRatio = parseInt(ar[0]) || 16;
         const hRatio = parseInt(ar[1]) || 9;
-        const mp = parseFloat(mpInput.value) || 0.4;
+        const baseMP = parseFloat(mpInput.value) || 0.4;
+        const mp = Number.isFinite(requestedMP) && requestedMP > 0 ? requestedMP : baseMP;
         let w = Math.sqrt(mp * 1000000 * (wRatio / hRatio));
         let h = w * (hRatio / wRatio);
         w = Math.round(w / 32) * 32;
@@ -481,16 +538,28 @@ function createPanel(node) {
     spModelSelect.innerHTML = `<option value="">加载中...</option>`;
     
     const spStepsInput = make("input"); 
-    spStepsInput.type = "number"; spStepsInput.value = "2"; spStepsInput.className = "ghupo-duration-input"; spStepsInput.style.width = "40px";
+    spStepsInput.type = "number"; spStepsInput.value = "2"; spStepsInput.className = "ghupo-duration-input"; spStepsInput.style.width = "44px";
 
     // 构建独立面板
-    const dirAdvancedPanel = make("div");
-    dirAdvancedPanel.style.cssText = "display:flex;flex-direction:column;gap:8px;padding:8px;background:#1d2731;border-radius:6px;margin:4px 0;border:1px solid #2c4255;";
+    const dirAdvancedPanel = make("details");
+    dirAdvancedPanel.className = "ghupo-advanced";
+    const dirAdvancedSummary = make("summary", {}, "音频与二采设置");
+    dirAdvancedSummary.className = "ghupo-advanced-summary";
+    const dirAdvancedStatus = make("span");
+    dirAdvancedStatus.className = "ghupo-advanced-status";
+    dirAdvancedSummary.appendChild(dirAdvancedStatus);
+    const dirAdvancedContent = make("div");
+    dirAdvancedContent.className = "ghupo-advanced-content";
+    dirAdvancedPanel.append(dirAdvancedSummary, dirAdvancedContent);
 
-    // 第一行：音频模式
+    const audioSection = make("div");
+    audioSection.className = "ghupo-advanced-section ghupo-audio-section";
+    const audioTitle = make("div", {}, "音频");
+    audioTitle.className = "ghupo-advanced-section-title";
     const audioRow = make("div");
-    audioRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+    audioRow.className = "ghupo-audio-row";
     audioRow.append(make("span", {}, "音频模式"), audioSelect);
+    audioSection.append(audioTitle, audioRow);
 
     // 第二行：二采设置
     const overlapInput = make("input"); 
@@ -498,55 +567,68 @@ function createPanel(node) {
     overlapInput.value = ""; 
     overlapInput.placeholder = "如 [0, 24, 24]";
     overlapInput.className = "ghupo-duration-input";
-    overlapInput.style.flex = "1";
-    overlapInput.title = "段间重叠帧数（0 为硬切）。留空则默认 24 帧";
+    overlapInput.title = "段间重叠帧数；填 0 为硬切，留空默认 24 帧";
 
     const overlapRow = make("div");
-    overlapRow.style.cssText = "display:flex;align-items:center;gap:8px;width:100%;margin-top:4px;";
-    overlapRow.append(make("span", {}, "段间重叠"), overlapInput);
+    overlapRow.className = "ghupo-sb-overlap";
+    overlapRow.append(make("span", {}, "重叠帧"), overlapInput);
+
+    const refineMPRow = make("div");
+    refineMPRow.className = "ghupo-refine-mp";
+    const refineResolutionLabel = make("span");
+    refineResolutionLabel.className = "ghupo-refine-resolution";
+    refineMPRow.append(make("span", {}, "Refine目标MP"), refineMPInput, refineResolutionLabel);
 
     const splitRunCheck = make("input");
     splitRunCheck.type = "checkbox";
     splitRunCheck.style.margin = "0";
     const splitRunToggle = make("label");
-    splitRunToggle.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-weight:bold;color:#0aa4d6;";
-    splitRunToggle.append(splitRunCheck, make("span", {}, "分两次运行"));
+    splitRunToggle.className = "ghupo-split-toggle";
+    splitRunToggle.append(splitRunCheck, make("span", {}, "分两步运行"));
     const splitStageSelect = make("select");
     splitStageSelect.className = "ghupo-duration-input";
-    splitStageSelect.style.flex = "1";
+    splitStageSelect.className += " ghupo-split-stage";
     splitStageSelect.innerHTML = `<option value="pass1">第 1 次：一采并保存缓存</option><option value="pass2">第 2 次：读取缓存并二采</option>`;
     
     const spRow = make("div");
-    spRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:4px;";
+    spRow.className = "ghupo-upscale-controls";
     const spModeSelect = make("select");
-    spModeSelect.className = "ghupo-duration-input";
-    spModeSelect.style.flex = "1";
+    spModeSelect.className = "ghupo-duration-input ghupo-upscale-mode";
     spModeSelect.innerHTML = `<option value="selflift">极速二采 (SelfLift)</option><option value="refine">高清二采 (Refine)</option>`;
     
     const spToggle = make("label");
-    spToggle.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;font-weight:bold;color:#0aa4d6;";
+    spToggle.className = "ghupo-split-toggle ghupo-upscale-toggle";
     spToggle.append(spCheck, make("span", {}, "开启二采"));
 
     const spStepsWrap = make("div");
-    spStepsWrap.style.cssText = "display:flex;align-items:center;gap:4px;white-space:nowrap;";
+    spStepsWrap.className = "ghupo-upscale-steps";
     spStepsWrap.append(make("span", {}, "高清步数"), spStepsInput);
 
-    spRow.append(spToggle, spModeSelect, spModelSelect, spStepsWrap);
-    const execRow = make("div");
-    execRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:4px;";
-    execRow.append(splitRunToggle, splitStageSelect);
-    const splitRunHint = make("span", {}, "分步运行仅适用于 Refine；SelfLift 只支持全自动。");
-    splitRunHint.style.cssText = "display:block;color:#8697a7;font-size:11px;margin-left:4px;";
+    const refineControls = make("div");
+    refineControls.className = "ghupo-refine-controls";
+    refineControls.append(refineMPRow, splitRunToggle, splitStageSelect);
+    spRow.append(spToggle, spModeSelect, spStepsWrap, refineControls);
+
+    const spModelRow = make("div");
+    spModelRow.className = "ghupo-upscale-model-row";
+    spModelRow.append(make("span", {}, "二采模型"), spModelSelect);
+    const upscaleSection = make("div");
+    upscaleSection.className = "ghupo-advanced-section ghupo-upscale-section";
+    const upscaleTitle = make("div", {}, "二采");
+    upscaleTitle.className = "ghupo-advanced-section-title";
+    upscaleSection.append(upscaleTitle, spRow, spModelRow);
 
     const updateSplitRunControls = () => {
-        const canSplit = spCheck.checked && spModeSelect.value === "refine";
-        splitRunCheck.disabled = !canSplit;
-        if (!canSplit) splitRunCheck.checked = false;
-        splitStageSelect.style.display = canSplit && splitRunCheck.checked ? "" : "none";
-        splitRunHint.style.display = canSplit ? "none" : "";
-        splitRunHint.textContent = !spCheck.checked
-            ? "开启二采后可选择分步运行。"
-            : "SelfLift 只支持全自动；分步运行请切换到 Refine。";
+        const isRefine = spCheck.checked && spModeSelect.value === "refine";
+        dirAdvancedStatus.textContent = spCheck.checked
+            ? `二采已开启 · ${spModeSelect.value === "refine" ? "Refine" : "SelfLift"}`
+            : "二采关闭";
+        splitRunCheck.disabled = !isRefine;
+        if (!isRefine) splitRunCheck.checked = false;
+        refineControls.style.display = isRefine ? "flex" : "none";
+        splitStageSelect.style.display = isRefine && splitRunCheck.checked ? "" : "none";
+        const refineDimensions = calcDimensions(parseFloat(refineMPInput.value));
+        refineResolutionLabel.textContent = `输出 ${refineDimensions.w}×${refineDimensions.h}`;
     };
 
     const selectedExecMode = () => (
@@ -555,9 +637,9 @@ function createPanel(node) {
             : "full"
     );
 
-    dirAdvancedPanel.append(audioRow, overlapRow, spRow, execRow, splitRunHint);
+    dirAdvancedContent.append(audioSection, upscaleSection);
 
-    [spCheck, spModeSelect, splitRunCheck, splitStageSelect].forEach(control => {
+    [spCheck, spModeSelect, splitRunCheck, splitStageSelect, refineMPInput, arSelect, mpInput].forEach(control => {
         control.addEventListener("change", () => {
             updateSplitRunControls();
             if (typeof persist === "function") persist();
@@ -590,20 +672,27 @@ function createPanel(node) {
     durationInput.value = "5";
     const durationInc = make("button", {}, "+"); durationInc.className = "ghupo-duration-btn";
     const durationUnit = make("span", {}, "秒"); durationUnit.className = "ghupo-duration-unit";
+    durationGroup.classList.add("ghupo-sb-duration");
     durationGroup.append(durationLabel, durationDec, durationInput, durationInc, durationUnit);
 
     const templateSelect = make("select"); templateSelect.className = "ghupo-template";
     for (const [value, label] of Object.entries(PROMPT_TEMPLATES)) templateSelect.append(new Option(label, value));
     const modelName = make("span"); modelName.className = "ghupo-model";
-    const resetBtn = make("button", {}, "↻"); resetBtn.className = "ghupo-tool";
-    const optBtn = make("button", {}, "✦"); optBtn.className = "ghupo-tool";
-    const historyBtn = make("button", {}, "⏰"); historyBtn.className = "ghupo-tool";
+    const resetBtn = make("button", {}, "↻ 恢复原文"); resetBtn.className = "ghupo-prompt-action";
+    resetBtn.title = "恢复未优化的原始提示词";
+    const optBtn = make("button"); optBtn.className = "ghupo-prompt-action ghupo-optimize";
+    const optContent = make("span"); optContent.className = "ghupo-optimize-content";
+    const optIcon = make("span", {}, "✦"); optIcon.className = "ghupo-optimize-icon";
+    const optLabel = make("span", {}, "优化提示词");
+    optContent.append(optIcon, optLabel);
+    optBtn.appendChild(optContent);
+    optBtn.title = "使用当前模板优化提示词";
+    const historyBtn = make("button", {}, "历史"); historyBtn.className = "ghupo-prompt-action";
     historyBtn.title = t("Optimization history");
-    const gearBtn = make("button", {}, "⚙"); gearBtn.className = "ghupo-tool";
-    tools.append(elapsed, dirSizeGroup, durationGroup, templateSelect, modelName, resetBtn, optBtn, historyBtn, gearBtn);
+    const gearBtn = make("button", {}, "⚙ 设置"); gearBtn.className = "ghupo-prompt-action";
+    tools.append(dirSizeGroup, templateSelect, modelName);
     root.appendChild(tools);
-    // 把刚才做好的高级面板插到工具栏下方
-    root.appendChild(dirAdvancedPanel); 
+    root.appendChild(dirAdvancedPanel);
 
     // ---- 历史菜单（固定定位）----
     // 【挂到 body】ComfyUI 节点容器带 transform，会让 position:fixed 相对节点定位，
@@ -828,6 +917,8 @@ function createPanel(node) {
     const prompt = make("div");
     prompt.className = "ghupo-prompt ghpO-prompt-empty";
     prompt.contentEditable = "true";
+    prompt.setAttribute("translate", "no");
+    prompt.classList.add("notranslate");
     prompt.style.minHeight = "150px"; // 【防挤压】保证提示词输入框至少 150px 高
     prompt.spellcheck = false;
     prompt.tabIndex = 0;
@@ -853,7 +944,10 @@ function createPanel(node) {
         e.stopPropagation();
         if (typeof addSegment === "function") addSegment();
     };
-    storyboardHeader.append(storyboardToggle, storyboardTitle, storyboardAddBtn, storyboardMeta);
+    overlapRow.addEventListener("click", (e) => e.stopPropagation());
+    durationGroup.addEventListener("click", (e) => e.stopPropagation());
+    durationGroup.addEventListener("pointerdown", (e) => e.stopPropagation());
+    storyboardHeader.append(storyboardToggle, storyboardTitle, durationGroup, storyboardAddBtn, overlapRow, storyboardMeta);
     const storyboardBody = make("div"); storyboardBody.className = "ghupo-sb-body";
     // 【L2-b】时间线：tlInner 是内容层（宽度随 zoom 变），storyboardBody 是滚动容器
     const tlInner = make("div"); tlInner.className = "ghupo-tl-inner";
@@ -869,6 +963,14 @@ function createPanel(node) {
         storyboardToggle.textContent = storyboardCollapsed ? "▸" : "▾";
     };
     root.appendChild(storyboard);
+
+    const promptToolbar = make("div"); promptToolbar.className = "ghupo-prompt-toolbar";
+    const promptTitle = make("span", {}, "提示词优化"); promptTitle.className = "ghupo-prompt-title";
+    const promptHint = make("span", {}, "先编排提示词，再一键生成优化稿"); promptHint.className = "ghupo-prompt-hint";
+    const promptActions = make("div"); promptActions.className = "ghupo-prompt-actions";
+    promptActions.append(resetBtn, historyBtn, gearBtn, elapsed, optBtn);
+    promptToolbar.append(promptTitle, promptHint, promptActions);
+    root.appendChild(promptToolbar);
 
     const promptWrap = make("div");
     promptWrap.className = "ghupo-prompt-wrap";
@@ -1050,20 +1152,25 @@ function createPanel(node) {
         // 【双模式】持久化前把当前编辑器内容与缓存同步回当前模式槽位
         if (promptState === "original") modeState[currentSlot()].original = editorText();
         modeState[currentSlot()].cache = optimizerCache;
-        // 【L2-b】回写镜像到激活段（duration 独立，不走镜像）
-        // 仅参考素材子 tab（原生 video 槽）参与段镜像，参考模型子 tab 走独立槽
-        if (viewMode === "video" && currentSlot() === "video" && segments[activeSegmentIndex]) {
+        // Keep the active storyboard segment synchronized in either video subview.
+        if (viewMode === "video" && segments[activeSegmentIndex]) {
             segments[activeSegmentIndex].duration = readDuration();
-            modeState.video.cache = optimizerCache;
             syncMirrorToSegment();
         }
         // 【L2-c】重新提取每段的图片索引（大白话优先，优化稿兜底）
         if (viewMode === "video") {
+            if (currentSubView === "refmod") activeRefmodSegmentIndex = activeSegmentIndex;
+            else activeMediaSegmentIndex = activeSegmentIndex;
             for (const s of segments) {
                 s.imageIndices = extractSegmentImageIndices(s);
             }
+            if (segments[activeSegmentIndex]) {
+                segments[activeSegmentIndex].duration = readDuration();
+                segments[activeSegmentIndex].media = Object.fromEntries(media.entries());
+            }
         }
         const value = JSON.stringify({
+            stateUpdatedAt: Date.now(),
             media: [...media.entries()],
             modeState: modeState,
             viewMode: viewMode,
@@ -1074,11 +1181,18 @@ function createPanel(node) {
             optimizer: hasValidConfig ? optimizerSettings : null,
             segments: segments,
             activeSegmentIndex: activeSegmentIndex,
+            mediaSegments: mediaSegments,
+            activeMediaSegmentIndex: activeMediaSegmentIndex,
+            refmodSegments: refmodSegments,
+            activeRefmodSegmentIndex: activeRefmodSegmentIndex,
             currentSubView: currentSubView,
             dirAR: arSelect.value,
             dirMP: mpInput.value,
             dirWidth: calcDimensions().w,
             dirHeight: calcDimensions().h,
+            dirRefineMP: refineMPInput.value,
+            dirRefineWidth: calcDimensions(parseFloat(refineMPInput.value)).w,
+            dirRefineHeight: calcDimensions(parseFloat(refineMPInput.value)).h,
             dirSteps: parseInt(stepsInput.value, 10) || 8,
             dirSecondPass: spCheck.checked,
             dirSecondPassModel: spModelSelect.value,
@@ -1106,12 +1220,8 @@ function createPanel(node) {
         // - images: 有 @ 引用时为数组，否则为 null（= 用全部素材）
         let segmentsPayload = "";
         if (viewMode === "video") {
-            // 确保当前段的 media 是最新的
-            if (!segments[activeSegmentIndex].media) segments[activeSegmentIndex].media = {};
-            segments[activeSegmentIndex].media = Object.fromEntries(media.entries());
-            
             segmentsPayload = JSON.stringify({
-                segments: segments.map(s => ({
+                segments: mediaSegments.map(s => ({
                     duration: s.duration,
                     prompt: s.cache?.result || s.original || "",
                     images: s.imageIndices,
@@ -1240,11 +1350,13 @@ function createPanel(node) {
         TAG_RE.lastIndex = 0;
         while ((m = TAG_RE.exec(source))) {
             const rawWord = String(m[1] || "");
+            const inRefmodView = viewMode === "video" && currentSubView === "refmod";
             // RefMod 标签首字母大写（Video/Picture/Audio），原生标签小写或中文
-            let isRefmod = /^[A-Za-z]/.test(rawWord) && rawWord[0] === rawWord[0].toUpperCase() && rawWord[0] !== rawWord[0].toLowerCase();
-            if (!(viewMode === "video" && currentSubView === "refmod")) {
-                isRefmod = false; // 只要不在参考模型子tab下，强制降级为原生小写标签
-            }
+            const isTitleCaseEnglish = /^[A-Za-z]/.test(rawWord)
+                && rawWord[0] === rawWord[0].toUpperCase()
+                && rawWord[0] !== rawWord[0].toLowerCase();
+            const isTranslatedChinese = ["图片", "图像", "图", "视频", "音频"].includes(rawWord);
+            const isRefmod = inRefmodView && (isTitleCaseEnglish || isTranslatedChinese);
             const lowerType = rawWord.toLowerCase();
             const baseType = ["picture", "image", "图片", "图像", "图"].includes(lowerType) ? "picture"
                 : ["video", "视频"].includes(lowerType) ? "video" : "audio";
@@ -1254,6 +1366,22 @@ function createPanel(node) {
             if (!m[0].length) TAG_RE.lastIndex++;
         }
         return matches;
+    };
+
+    const canonicalizeRefmodTags = source => {
+        if (!(viewMode === "video" && currentSubView === "refmod")) return source;
+        const matches = mediaMatches(source).filter(m => m.type.startsWith("refmod-"));
+        if (!matches.length) return source;
+        let result = "";
+        let cursor = 0;
+        for (const match of matches) {
+            const kind = match.type.slice("refmod-".length);
+            const label = kind === "picture" ? "Picture" : kind === "video" ? "Video" : "Audio";
+            const leadingWhitespace = match.raw.match(/^\s*/)?.[0] || "";
+            result += source.slice(cursor, match.index) + leadingWhitespace + `<${label} ${match.ordinal}>`;
+            cursor = match.index + match.raw.length;
+        }
+        return result + source.slice(cursor);
     };
 
     const resolveMedia = (type, ordinal) => {
@@ -1528,6 +1656,7 @@ function createPanel(node) {
                     const entry = resolveMedia(d.type, d.ordinal);
                     const wrap = make("span");
                     wrap.className = "ghupo-token";
+                    wrap.setAttribute("translate", "no");
                     if (entry && !entry.vacant && entry.name) {
                         const preview = make("span");
                         preview.className = "ghupo-preview" + (d.type === "audio" ? " audio" : "");
@@ -1565,6 +1694,7 @@ function createPanel(node) {
                     tag.textContent = d.raw;
                     tag.contentEditable = "false";
                     tag.setAttribute("spellcheck", "false");
+                    tag.setAttribute("translate", "no");
                     // 【金色内联样式】绕过 CSS 优先级，强制 RefMod 标签显示金色
                     if (d.isRefmod && !isGhost) {
                         tag.style.background = "#5a4930";
@@ -1955,7 +2085,8 @@ function createPanel(node) {
             // 【历史作废】遍历所有模式的历史栈，把引用已删/已换素材的条目清掉
             {
                 let dropped = 0;
-                for (const m of ["video", "image"]) {
+                const historyModes = currentSlot() === "refmod" ? ["refmod"] : ["video", "image"];
+                for (const m of historyModes) {
                     const stack = modeState[m].history || [];
                     const keep = [];
                     for (const entry of stack) {
@@ -2204,7 +2335,7 @@ function createPanel(node) {
                 const lbl = make("div"); lbl.className = "ghupo-tl-seg-label";
                 // 【L2-b】当前段优先读实时编辑器内容，其他段读存储
                 const liveText = (info.index === activeSegmentIndex)
-                    ? (promptState === "optimized" ? (optimizerCache?.result || "") : (modeState.video.original || ""))
+                    ? (promptState === "optimized" ? (optimizerCache?.result || "") : (modeState[currentSlot()].original || ""))
                     : (info.seg.cache?.result || info.seg.original || "");
                 const rawText = liveText.replace(/\s+/g, " ").trim();
                 lbl.textContent = `段${info.index + 1}` + (rawText ? " · " + rawText.slice(0, 16) : "");
@@ -2222,7 +2353,7 @@ function createPanel(node) {
                 } else {
                     const srcText = info.seg.cache?.result || info.seg.original || "";
                     for (const m of mediaMatches(srcText)) {
-                        if (m.type === "picture") picOrdinals.push(m.ordinal);
+                        if (m.type === "picture" || m.type === "refmod-picture") picOrdinals.push(m.ordinal);
                     }
                 }
                 const seen = new Set();
@@ -2233,7 +2364,13 @@ function createPanel(node) {
                     const thumb = make("span"); thumb.className = "ghupo-tl-seg-thumb";
                     
                     // 【核心修复】从该段独立的 media 快照中读取，而不是全局 resolveMedia
-                    const slotName = `ref_image_${ord}`;
+                    const refmodImageSlots = REFMOD_SLOTS.filter(slot => {
+                        const entry = info.seg.media?.[slot] || (info.index === activeSegmentIndex ? media.get(slot) : null);
+                        return entry?.kind === "refmod" && String(entry.refmodKind || "video").toLowerCase() === "image";
+                    });
+                    const slotName = currentSubView === "refmod"
+                        ? refmodImageSlots[ord - 1]
+                        : `ref_image_${ord}`;
                     let entry = null;
                     if (info.seg.media && info.seg.media[slotName]) {
                         entry = info.seg.media[slotName];
@@ -2271,7 +2408,8 @@ function createPanel(node) {
             }
 
             // 4. 更新标题栏
-            storyboardMeta.textContent = `${total.toFixed(1)}s · ${segments.length} 段 · ${Math.round(zoom)}px/s`;
+            const boardLabel = currentSubView === "refmod" ? "参考模型" : "参考素材";
+            storyboardMeta.textContent = `${boardLabel} · ${total.toFixed(1)}s · ${segments.length} 段 · ${Math.round(zoom)}px/s`;
             storyboard.style.display = "";
             storyboardBody.classList.toggle("hidden", storyboardCollapsed);
             storyboardToggle.textContent = storyboardCollapsed ? "▸" : "▾";
@@ -2343,8 +2481,9 @@ function createPanel(node) {
     function commitReorder(fromIndex, toIndex) {
         if (fromIndex === toIndex) return;
         // 回写当前段
-        if (promptState === "original") modeState.video.original = editorText();
-        modeState.video.cache = optimizerCache;
+        const slot = currentSlot();
+        if (promptState === "original") modeState[slot].original = editorText();
+        modeState[slot].cache = optimizerCache;
         syncMirrorToSegment();
         const [moved] = segments.splice(fromIndex, 1);
         const insertAt = toIndex > fromIndex ? toIndex - 1 : toIndex;
@@ -2355,7 +2494,7 @@ function createPanel(node) {
         // 刷新编辑器 + 时长控件
         prompt.value = promptState === "optimized"
             ? (optimizerCache?.result || "")
-            : (modeState.video.original || "");
+            : (modeState[slot].original || "");
         renderRich();
         prompt.blur();
         prompt.scrollTop = 0;
@@ -2414,7 +2553,8 @@ function createPanel(node) {
         tail.style.paddingRight = "3px";
         tail.textContent = totalDur.toFixed(1) + "s";
         tlRuler.appendChild(tail);
-        storyboardMeta.textContent = `${totalDur.toFixed(1)}s · ${segments.length} 段 · ${Math.round(zoom)}px/s`;
+        const boardLabel = currentSubView === "refmod" ? "参考模型" : "参考素材";
+        storyboardMeta.textContent = `${boardLabel} · ${totalDur.toFixed(1)}s · ${segments.length} 段 · ${Math.round(zoom)}px/s`;
     }
 
     // ---- tlTrack 事件委托：pointerdown / move / up ----
@@ -2562,60 +2702,113 @@ function createPanel(node) {
     let currentSubView = "media";  // "media" | "refmod"
 
     // 【多段隔离】为 RefMod 保存独立的段数据
-    let refmodSegments = [{ id: "seg-0", duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null }];
+    let refmodSegments = [{ id: "seg-0", duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null, media: {} }];
     let activeRefmodSegmentIndex = 0;
 
     function setSubView(sub) {
         if (sub !== "media" && sub !== "refmod") sub = "media";
         if (viewMode === "video" && sub !== currentSubView) {
-            // 1. 保存当前槽的编辑器内容
+            // Save the outgoing storyboard, prompt, and media before switching pools.
             const oldSlot = currentSlot();
             if (promptState === "original") modeState[oldSlot].original = editorText();
             modeState[oldSlot].cache = optimizerCache;
-            
-            // 【多段隔离】切换前，把当前段数据存回对应的数组
-            if (currentSubView === "media") {
-                segments[activeSegmentIndex] = { ...segments[activeSegmentIndex], original: modeState.media?.original || modeState.video.original, cache: optimizerCache };
-            } else if (currentSubView === "refmod") {
-                refmodSegments[activeRefmodSegmentIndex] = { ...refmodSegments[activeRefmodSegmentIndex], original: modeState.refmod.original, cache: optimizerCache };
+            if (segments[activeSegmentIndex]) {
+                segments[activeSegmentIndex].media = Object.fromEntries(media.entries());
+                segments[activeSegmentIndex].original = modeState[oldSlot].original || "";
+                segments[activeSegmentIndex].cache = optimizerCache;
+                segments[activeSegmentIndex].history = modeState[oldSlot].history || [];
+                segments[activeSegmentIndex].viewState = promptState;
             }
 
-            // 2. 切换子 tab
+            if (currentSubView === "media") {
+                mediaSegments = segments;
+                activeMediaSegmentIndex = activeSegmentIndex;
+            } else {
+                refmodSegments = segments;
+                activeRefmodSegmentIndex = activeSegmentIndex;
+            }
+
             currentSubView = sub;
-            
-            // 3. 切换段数组
+
             if (currentSubView === "refmod") {
                 segments = refmodSegments;
                 activeSegmentIndex = activeRefmodSegmentIndex;
             } else {
-                segments = modeState.video.segments || segments; // 这里为了兼容旧逻辑，暂时保留原来变量
-                activeSegmentIndex = 0; 
+                segments = mediaSegments;
+                activeSegmentIndex = activeMediaSegmentIndex;
+            }
+            media.clear();
+            for (const [slot, entry] of Object.entries(segments[activeSegmentIndex]?.media || {})) {
+                media.set(slot, entry);
+            }
+            for (const slot of ALL_SLOTS) {
+                const slotWidget = widget(node, slot);
+                if (slotWidget) slotWidget.value = media.get(slot)?.name || "";
             }
 
-            // 4. 加载新槽的编辑器内容
             const newSlot = currentSlot();
+            const targetSegment = segments[activeSegmentIndex];
+            if (targetSegment && newSlot === "refmod"
+                && !targetSegment.original && !targetSegment.cache
+                && modeState.refmod.original) {
+                targetSegment.original = modeState.refmod.original;
+                targetSegment.cache = modeState.refmod.cache || null;
+                targetSegment.history = modeState.refmod.history || [];
+                targetSegment.viewState = modeState.refmod.cache?.result ? "optimized" : "original";
+            }
+            syncSegmentToMirror(activeSegmentIndex);
             optimizerCache = modeState[newSlot].cache || null;
-            promptState = optimizerCache?.result ? "optimized" : "original";
+            const savedView = segments[activeSegmentIndex]?.viewState;
+            promptState = savedView === "original"
+                ? "original"
+                : (optimizerCache?.result ? "optimized" : "original");
             prompt.value = promptState === "optimized"
                 ? optimizerCache.result
                 : (modeState[newSlot].original || "");
+            if (segments[activeSegmentIndex]) setDuration(segments[activeSegmentIndex].duration, false);
             if (typeof renderRich === "function") renderRich();
             if (typeof prompt.blur === "function") prompt.blur();
             if (typeof updateOptimizeButton === "function") updateOptimizeButton();
         } else {
             currentSubView = sub;
+            if (viewMode === "video") {
+                if (sub === "refmod") {
+                    segments = refmodSegments;
+                    activeSegmentIndex = activeRefmodSegmentIndex;
+                } else {
+                    segments = mediaSegments;
+                    activeSegmentIndex = activeMediaSegmentIndex;
+                }
+                media.clear();
+                for (const [slot, entry] of Object.entries(segments[activeSegmentIndex]?.media || {})) {
+                    media.set(slot, entry);
+                }
+                for (const slot of ALL_SLOTS) {
+                    const slotWidget = widget(node, slot);
+                    if (slotWidget) slotWidget.value = media.get(slot)?.name || "";
+                }
+                syncSegmentToMirror(activeSegmentIndex);
+                const savedView = segments[activeSegmentIndex]?.viewState;
+                promptState = savedView === "original"
+                    ? "original"
+                    : (optimizerCache?.result ? "optimized" : "original");
+                prompt.value = promptState === "optimized"
+                    ? optimizerCache.result
+                    : (modeState[currentSlot()].original || "");
+                if (segments[activeSegmentIndex]) setDuration(segments[activeSegmentIndex].duration, false);
+            }
         }
         const isMedia = sub === "media";
         subTabMedia.classList.toggle("active", isMedia);
         subTabRefmod.classList.toggle("active", !isMedia);
         mediaSubPanel.classList.toggle("hidden", !isMedia);
         refmodSubPanel.classList.toggle("hidden", isMedia);
-        // 两个子 tab 都显示 countRow（内容由 render 决定）
+        // Both subviews retain their own storyboard and media counts.
         countRow.style.display = "";
-        // 参考模型子 tab 下隐藏故事板
         if (typeof renderStoryboard === "function") renderStoryboard();
         if (typeof refreshPromptPlaceholder === "function") refreshPromptPlaceholder();
         if (typeof render === "function") render();
+        if (typeof renderRefmodSection === "function") renderRefmodSection();
         if (typeof persist === "function") persist();
     }
 
@@ -3101,22 +3294,24 @@ function createPanel(node) {
     // 【L2-b】分段数据模型：每段 = 一个"迷你万能节点"
     // - original: 该段大白话（用户手写）
     // - cache: 该段优化缓存 {signature, originalPrompt, result}
-    // - history: 该段 3 版历史，与 modeState.video.history 同结构
+    // - history: 该段自己的优化历史
     // - imageIndices: null = 用全部；数组 = 0-based；永不 []
-    // 镜像机制：modeState.video 永远是"当前激活段的镜像"。
+    // 镜像机制：当前活动子模式的 modeState 槽对应当前激活段。
     // 切换段时"先回写、再加载"，现有优化流程一行不用改。
-    let segments = [{ id: "seg-0", duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null, media: {} }];
+    let mediaSegments = [{ id: "seg-0", duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null, media: {} }];
+    let segments = mediaSegments;
+    let activeMediaSegmentIndex = 0;
     let activeSegmentIndex = 0;
 
-    // ---- 镜像同步：把 modeState.video / optimizerCache 的状态回写进当前段 ----
+    // ---- Mirror the active segment to its own prompt slot ----
     function syncMirrorToSegment() {
         if (viewMode !== "video") return;
         const seg = segments[activeSegmentIndex];
         if (!seg) return;
-        seg.original = modeState.video.original || "";
-        seg.cache = modeState.video.cache || null;
-        seg.history = modeState.video.history || [];
-        // 【L2-d】保存离开时的视图状态，切回时恢复
+        const slot = currentSlot();
+        seg.original = modeState[slot].original || "";
+        seg.cache = modeState[slot].cache || null;
+        seg.history = modeState[slot].history || [];
         seg.viewState = promptState;
     }
 
@@ -3126,7 +3321,7 @@ function createPanel(node) {
         const indices = [];
         const seen = new Set();
         for (const m of mediaMatches(String(text))) {
-            if (m.type === "picture") {
+            if (m.type === "picture" || m.type === "refmod-picture") {
                 const idx = Number(m.ordinal) - 1;
                 if (!seen.has(idx)) { seen.add(idx); indices.push(idx); }
             }
@@ -3144,14 +3339,15 @@ function createPanel(node) {
         return null;
     }
 
-    // ---- 镜像同步：把某段的状态加载进 modeState.video / optimizerCache ----
+    // ---- Load a segment into its own prompt slot ----
     function syncSegmentToMirror(index) {
         if (viewMode !== "video") return;
         const seg = segments[index];
         if (!seg) return;
-        modeState.video.original = seg.original || "";
-        modeState.video.cache = seg.cache || null;
-        modeState.video.history = Array.isArray(seg.history) ? seg.history : [];
+        const slot = currentSlot();
+        modeState[slot].original = seg.original || "";
+        modeState[slot].cache = seg.cache || null;
+        modeState[slot].history = Array.isArray(seg.history) ? seg.history : [];
         optimizerCache = seg.cache || null;
         // 【L2-d】优先恢复用户离开时的视图状态；没有则按缓存是否存在决定
         const saved = seg.viewState;
@@ -3166,6 +3362,19 @@ function createPanel(node) {
         }
     }
 
+    function loadSegmentMedia(index) {
+        media.clear();
+        for (const [slot, entry] of Object.entries(segments[index]?.media || {})) {
+            media.set(slot, entry);
+        }
+        for (const slot of ALL_SLOTS) {
+            const slotWidget = widget(node, slot);
+            if (slotWidget) slotWidget.value = media.get(slot)?.name || "";
+        }
+        render();
+        renderRefmodSection();
+    }
+
     // ---- 切换激活段：先回写、再加载、然后刷新 UI ----
     function switchSegment(index) {
         if (viewMode !== "video") return;
@@ -3174,8 +3383,9 @@ function createPanel(node) {
         if (optimizerAbort) { try { optimizerAbort.abort(); } catch {} }
         
         // 1. 回写当前段（包括把 media Map 存进当前段）
-        if (promptState === "original") modeState.video.original = editorText();
-        modeState.video.cache = optimizerCache;
+        const slot = currentSlot();
+        if (promptState === "original") modeState[slot].original = editorText();
+        modeState[slot].cache = optimizerCache;
         syncMirrorToSegment();
         
         // 【核心】保存当前段的素材池！
@@ -3183,28 +3393,13 @@ function createPanel(node) {
 
         // 2. 切换索引
         activeSegmentIndex = index;
+        loadSegmentMedia(index);
         
-        // 【核心】加载新段的素材池！
-        media.clear();
-        const newMediaObj = segments[index].media || {};
-        for (const [k, v] of Object.entries(newMediaObj)) {
-            media.set(k, v);
-        }
-        // 同步隐藏的 widget
-        for (const slot of ALL_SLOTS) {
-            const w = widget(node, slot);
-            if (w) w.value = media.get(slot)?.name || "";
-        }
-        render(); // 重绘素材区
-        
-        syncSegmentToMirror(index);
-        // 2. 切换索引 + 加载新段
-        activeSegmentIndex = index;
         syncSegmentToMirror(index);
         // 3. 刷新编辑器与 UI
         prompt.value = promptState === "optimized"
             ? (optimizerCache?.result || "")
-            : (modeState.video.original || "");
+            : (modeState[slot].original || "");
         renderRich();
         prompt.blur();
         prompt.scrollTop = 0;
@@ -3221,8 +3416,9 @@ function createPanel(node) {
         const result = { total: 0, succeeded: 0, failed: [] };
         if (viewMode !== "video") return result;
         // 先回写当前段
-        if (promptState === "original") modeState.video.original = editorText();
-        modeState.video.cache = optimizerCache;
+        const slot = currentSlot();
+        if (promptState === "original") modeState[slot].original = editorText();
+        modeState[slot].cache = optimizerCache;
         syncMirrorToSegment();
         // 找出需要优化的段（大白话非空）
         const needOptimize = [];
@@ -3288,8 +3484,9 @@ function createPanel(node) {
     function addSegment() {
         if (viewMode !== "video") return;
         // 先回写当前段
-        if (promptState === "original") modeState.video.original = editorText();
-        modeState.video.cache = optimizerCache;
+        const slot = currentSlot();
+        if (promptState === "original") modeState[slot].original = editorText();
+        modeState[slot].cache = optimizerCache;
         syncMirrorToSegment();
         const newSeg = { id: `seg-${Date.now()}`, duration: 5, original: "", cache: null, history: [], imageIndices: null, viewState: null, media: {} };
         const insertAt = activeSegmentIndex + 1;
@@ -3303,18 +3500,20 @@ function createPanel(node) {
         if (segments.length <= 1) return;
         if (index < 0 || index >= segments.length) return;
         // 先回写当前段
-        if (promptState === "original") modeState.video.original = editorText();
-        modeState.video.cache = optimizerCache;
+        const slot = currentSlot();
+        if (promptState === "original") modeState[slot].original = editorText();
+        modeState[slot].cache = optimizerCache;
         syncMirrorToSegment();
         segments.splice(index, 1);
         // 修正 activeSegmentIndex
         if (activeSegmentIndex >= segments.length) activeSegmentIndex = segments.length - 1;
         else if (activeSegmentIndex > index) activeSegmentIndex -= 1;
         // 重新加载当前段
+        loadSegmentMedia(activeSegmentIndex);
         syncSegmentToMirror(activeSegmentIndex);
         prompt.value = promptState === "optimized"
             ? (optimizerCache?.result || "")
-            : (modeState.video.original || "");
+            : (modeState[slot].original || "");
         renderRich();
         prompt.blur();
         prompt.scrollTop = 0;
@@ -3765,7 +3964,7 @@ function createPanel(node) {
             optimizerRequestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
             optimizerAbort = new AbortController();
             optBtn.classList.add("ghupo-loading");
-            // 【L2-d】优化中复用 ✦ 旋转效果（自动/手动一致）
+            promptWrap.classList.add("is-optimizing");
             elapsed.classList.add("visible");
             const started = performance.now();
             const tick = () => {
@@ -3794,7 +3993,7 @@ function createPanel(node) {
             // 【层1防御】引号规范化：中文引号 → 英文直引号
             // 中文引号 “ ” 有方向，方向反了会让 LLM 无法识别对话边界，
             // 导致嵌套 <d> 标签、对白吞并等错乱。英文直引号无方向，彻底消除歧义。
-            const normalizedBefore = String(before)
+            const normalizedBefore = canonicalizeRefmodTags(String(before))
                 .replace(/[\u201C\u201D]/g, '"')
                 .replace(/[\u2018\u2019]/g, "'");
             const body = {
@@ -3899,7 +4098,7 @@ function createPanel(node) {
             optimizerAbort = null; optimizerRequestId = null; optimizing = false;
             elapsed.classList.remove("visible"); elapsed.textContent = "";
             optBtn.classList.remove("ghupo-loading");
-            // 【L2-d】旋转效果已由 ghupo-loading class 清除恢复
+            promptWrap.classList.remove("is-optimizing");
             // 【进度条】手动单段优化结束 → 隐藏；多段由 autoOptimizeAllSegments 控制
             if (!autoOptimizeRunning) hideProgress();
         }
@@ -4339,8 +4538,25 @@ function createPanel(node) {
         requestAnimationFrame(() => {
             try {
                 // 恢复 UI 状态也用同样策略：优先 widget.value，其次 properties。
-                const stateRaw = stateWidget?.value || this.properties?.[stateKey] || "{}";
-                const restored = JSON.parse(stateRaw);
+                const widgetStateRaw = stateWidget?.value;
+                const propertyStateRaw = this.properties?.[stateKey];
+                let widgetState = null;
+                let propertyState = null;
+                try {
+                    if (widgetStateRaw) widgetState = JSON.parse(widgetStateRaw);
+                } catch (e) {
+                    console.warn("[UPO] invalid widget state; trying node properties", e);
+                }
+                try {
+                    if (propertyStateRaw) propertyState = JSON.parse(propertyStateRaw);
+                } catch (e) {
+                    console.warn("[UPO] invalid node property state", e);
+                }
+                const widgetUpdatedAt = Number(widgetState?.stateUpdatedAt) || 0;
+                const propertyUpdatedAt = Number(propertyState?.stateUpdatedAt) || 0;
+                const restored = propertyUpdatedAt > widgetUpdatedAt
+                    ? propertyState
+                    : (widgetState || propertyState || {});
                 media.clear();
                 for (const [slot, entry] of restored.media || []) {
                     if (entry && !Number.isFinite(Number(entry.weight))) entry.weight = 1.0;
@@ -4388,9 +4604,9 @@ function createPanel(node) {
                     // 兼容早期版本：把老 prompt 视作视频模式的大白话
                     modeState.video.original = restored.prompt;
                 }
-                // 【L2-b】恢复分段数据模型（每段=迷你万能节点）
-                if (Array.isArray(restored.segments) && restored.segments.length) {
-                    segments = restored.segments.map((s, i) => ({
+                currentSubView = restored.currentSubView === "refmod" ? "refmod" : "media";
+                const restoreSegments = list => Array.isArray(list) && list.length
+                    ? list.map((s, i) => ({
                         id: s.id || `seg-${i}`,
                         duration: Number.isFinite(Number(s.duration)) ? Number(s.duration) : 5,
                         original: String(s.original || ""),
@@ -4398,16 +4614,47 @@ function createPanel(node) {
                         history: Array.isArray(s.history) ? s.history : [],
                         imageIndices: Array.isArray(s.imageIndices) ? s.imageIndices : null,
                         viewState: (s.viewState === "original" || s.viewState === "optimized") ? s.viewState : null,
-                    }));
-                    activeSegmentIndex = Math.min(
-                        Math.max(0, Number(restored.activeSegmentIndex) || 0),
-                        segments.length - 1
-                    );
-                    // 把激活段的状态加载进镜像，覆盖从 modeState 恢复的老状态
-                    syncSegmentToMirror(activeSegmentIndex);
+                        media: s.media && typeof s.media === "object" && !Array.isArray(s.media)
+                            ? s.media
+                            : {},
+                    }))
+                    : null;
+                const legacySegments = restoreSegments(restored.segments);
+                mediaSegments = restoreSegments(restored.mediaSegments)
+                    || (currentSubView === "media" && legacySegments)
+                    || mediaSegments;
+                refmodSegments = restoreSegments(restored.refmodSegments)
+                    || (currentSubView === "refmod" && legacySegments)
+                    || refmodSegments;
+                activeMediaSegmentIndex = Math.min(
+                    Math.max(0, Number(restored.activeMediaSegmentIndex ?? (currentSubView === "media" ? restored.activeSegmentIndex : 0)) || 0),
+                    mediaSegments.length - 1
+                );
+                activeRefmodSegmentIndex = Math.min(
+                    Math.max(0, Number(restored.activeRefmodSegmentIndex ?? (currentSubView === "refmod" ? restored.activeSegmentIndex : 0)) || 0),
+                    refmodSegments.length - 1
+                );
+                segments = currentSubView === "refmod" ? refmodSegments : mediaSegments;
+                activeSegmentIndex = currentSubView === "refmod" ? activeRefmodSegmentIndex : activeMediaSegmentIndex;
+                const activeMedia = segments[activeSegmentIndex].media;
+                if (Object.keys(activeMedia).length) {
+                    media.clear();
+                    for (const [slot, entry] of Object.entries(activeMedia)) {
+                        if (entry && typeof entry === "object" && !Number.isFinite(Number(entry.weight))) {
+                            entry.weight = 1.0;
+                        }
+                        media.set(slot, entry);
+                    }
+                } else {
+                    segments[activeSegmentIndex].media = Object.fromEntries(media.entries());
                 }
+                for (const slot of ALL_SLOTS) {
+                    const slotWidget = widget(this, slot);
+                    if (slotWidget) slotWidget.value = media.get(slot)?.name || "";
+                }
+                syncSegmentToMirror(activeSegmentIndex);
                 // 【刷新恢复】onConfigure 时 currentSubView 可能还没就位，直接用 restored 判断槽
-                const restoredSlot = (restored.viewMode === "video" && restored.currentSubView === "refmod")
+                const restoredSlot = (restored.viewMode === "video" && currentSubView === "refmod")
                     ? "refmod"
                     : (restored.viewMode === "image" ? "image" : "video");
                 optimizerCache = modeState[restoredSlot].cache || null;
@@ -4431,7 +4678,6 @@ function createPanel(node) {
                 renderStoryboard();
                 if (Number.isFinite(restored.duration)) setDuration(restored.duration, false);
                 if (typeof restored.currentSubView === "string") {
-                    currentSubView = (restored.currentSubView === "refmod") ? "refmod" : "media";
                     const isMedia = currentSubView === "media";
                     subTabMedia.classList.toggle("active", isMedia);
                     subTabRefmod.classList.toggle("active", !isMedia);
@@ -4442,6 +4688,7 @@ function createPanel(node) {
                 // 【恢复分辨率】
                 if (restored.dirAR) arSelect.value = restored.dirAR;
                 if (restored.dirMP) mpInput.value = restored.dirMP;
+                refineMPInput.value = restored.dirRefineMP || mpInput.value;
                 if (restored.dirSteps) stepsInput.value = restored.dirSteps;
                 if (restored.dirSecondPass !== undefined) spCheck.checked = restored.dirSecondPass;
                 if (restored.dirSecondPassModel) spModelSelect.value = restored.dirSecondPassModel;
@@ -4487,16 +4734,16 @@ function createPanel(node) {
     // 【L2-d·桥接器】暴露段数据 + 素材池计数给桥接器 UI 读取
     node.__ghupoBridgeData = () => {
         // 先回写当前段（防止用户正在编辑中切走数据）
-        // 仅参考素材子 tab（video 槽）参与段镜像，参考模型子 tab 走独立槽
-        if (viewMode === "video" && currentSlot() === "video" && segments[activeSegmentIndex]) {
+        if (viewMode === "video" && currentSubView === "media" && segments[activeSegmentIndex]) {
             if (promptState === "original") modeState.video.original = editorText();
             modeState.video.cache = optimizerCache;
             segments[activeSegmentIndex].duration = readDuration();
             syncMirrorToSegment();
         }
-        // 统计素材池
+        // The generation bridge always consumes the Reference Media storyboard.
         let imgCount = 0, vidCount = 0, audCount = 0;
-        for (const [, entry] of media) {
+        const bridgeMedia = mediaSegments[activeMediaSegmentIndex]?.media || {};
+        for (const entry of Object.values(bridgeMedia)) {
             if (!entry) continue;
             if (entry.kind === "image") imgCount++;
             else if (entry.kind === "video") vidCount++;
@@ -4504,7 +4751,7 @@ function createPanel(node) {
         }
         return {
             viewMode: viewMode,
-            segments: segments.map((s, i) => ({
+            segments: mediaSegments.map((s, i) => ({
                 id: s.id,
                 duration: Number(s.duration) || 5,
                 color: SEG_COLORS[i % SEG_COLORS.length].border,

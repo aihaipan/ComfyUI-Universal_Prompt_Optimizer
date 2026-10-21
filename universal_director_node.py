@@ -46,6 +46,7 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
     @classmethod
     def execute(cls, model, clip, vae, audio_vae, media_bundle, prompt_finite, segments_json, 
                 director_config="", width=864, height=480, fps=24, steps=8, seed=0,
+                refine_width=None, refine_height=None,
                 second_pass=False, second_pass_model="", second_pass_high_steps=2, second_pass_mode="selflift", exec_mode="full",
                 audio_mode="参考音色", bridge_overlaps="", save_video=False, 
                 filename_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director", refmod_mods=None):
@@ -91,6 +92,8 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
             segments_json=clean_segments_json, 
             duration_sec=5.0, 
             width=width, height=height, 
+            refine_width=refine_width or width,
+            refine_height=refine_height or height,
             audio_mode=audio_mode,
             second_pass=second_pass, 
             second_pass_model=second_pass_model, 

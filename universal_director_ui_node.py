@@ -317,6 +317,7 @@ class UniversalDirectorUI(io.ComfyNode):
         
         # 1. 获取宽高及高级参数
         _w, _h = width, height
+        _refine_w, _refine_h = width, height
         _steps = 8
         _sp, _sp_model, _sp_steps, _sp_mode = False, "", 2, "selflift"
         _exec_mode = "full"
@@ -329,6 +330,10 @@ class UniversalDirectorUI(io.ComfyNode):
                 st = json.loads(gh_state_json)
                 if "dirWidth" in st: _w = int(st["dirWidth"])
                 if "dirHeight" in st: _h = int(st["dirHeight"])
+                if "dirRefineWidth" in st: _refine_w = int(st["dirRefineWidth"])
+                else: _refine_w = _w
+                if "dirRefineHeight" in st: _refine_h = int(st["dirRefineHeight"])
+                else: _refine_h = _h
                 if "dirSteps" in st: _steps = int(st["dirSteps"])
                 if "dirSecondPass" in st: _sp = bool(st["dirSecondPass"])
                 if "dirSecondPassModel" in st: _sp_model = str(st["dirSecondPassModel"])
@@ -374,6 +379,7 @@ class UniversalDirectorUI(io.ComfyNode):
             model=model, clip=clip, vae=vae, audio_vae=audio_vae,
             media_bundle=media_bundle, prompt_finite=str(prompt or ""), segments_json=segments_json,
             width=_w, height=_h, steps=_steps,
+            refine_width=_refine_w, refine_height=_refine_h,
             second_pass=_sp, 
             second_pass_model=_sp_model, 
             second_pass_high_steps=_sp_steps,
