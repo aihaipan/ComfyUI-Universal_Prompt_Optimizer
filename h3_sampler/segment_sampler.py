@@ -1521,9 +1521,9 @@ class UniversalSegmentSampler(io.ComfyNode):
                     "UniversalH3LatentUpscale",
                     id=f"upscale_{number}",
                     samples=sampled.out(0),
-                    upscale_method="nearest-exact",
                     width=target_w,
                     height=target_h,
+                    upscaler_model=str(finite.get("second_pass_model") or ""),
                     model=model,
                 )
 
@@ -1690,13 +1690,9 @@ class UniversalH3LatentUpscale(io.ComfyNode):
             category="MiniMax H3/Internal",
             inputs=[
                 io.Latent.Input("samples"),
-                io.Combo.Input(
-                    "upscale_method",
-                    options=["nearest-exact", "bilinear", "area", "bicubic"],
-                    default="nearest-exact",
-                ),
                 io.Int.Input("width", default=864),
                 io.Int.Input("height", default=480),
+                io.String.Input("upscaler_model", default=""),
                 io.Model.Input("model"),
             ],
             outputs=[
@@ -1706,74 +1702,78 @@ class UniversalH3LatentUpscale(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, samples, upscale_method, width, height, model):
+    def execute(cls, samples, width, height, upscaler_model, model):
         import torch
-        import comfy.utils
+        import comfy.model_management as model_management
         from comfy.nested_tensor import NestedTensor
-        
+
         s = samples.copy()
         s.pop("noise_mask", None)
-
         z = s["samples"]
-        device = z.device if hasattr(z, "device") else "cuda"
-        latent_width = max(1, int(width) // 8)
-        latent_height = max(1, int(height) // 8)
+        latent_width = max(1, int(width) // 16)
+        latent_height = max(1, int(height) // 16)
 
-        if getattr(z, "is_nested", False):
-            streams = list(z.unbind())
-            video = streams[0]
-            audio = streams[1] if len(streams) > 1 else None
-            if video.ndim == 5:
-                b, c, t, h, w = video.shape
-                video_cpu = (
-                    video.to("cpu")
-                    .movedim(2, 1)
-                    .reshape(b * t, c, h, w)
-                )
-                video_cpu = comfy.utils.common_upscale(
-                    video_cpu,
-                    latent_width,
-                    latent_height,
-                    upscale_method,
-                    "disabled",
-                )
-                video = (
-                    video_cpu.reshape(b, t, c, latent_height, latent_width)
-                    .movedim(2, 1)
-                    .to(device)
-                )
-                del video_cpu
+        if not upscaler_model or str(upscaler_model).startswith("("):
+            raise ValueError(
+                "Refine requires a compatible MiniMax H3 3D latent upscaler. "
+                "Select one in the Director Console's second-pass model setting."
+            )
 
-            if audio is not None:
-                s["samples"] = NestedTensor((video, audio))
-            else:
-                s["samples"] = video
+        from .selflift_runtime.h3_upscaler import (
+            checkpoint_is_h3_compatible,
+            learned_latent_lift,
+        )
 
-        else:
-            if z.ndim == 5:
-                b, c, t, h, w = z.shape
-                video_cpu = (
-                    z.to("cpu")
-                    .movedim(2, 1)
-                    .reshape(b * t, c, h, w)
-                )
-                video_cpu = comfy.utils.common_upscale(
-                    video_cpu,
-                    latent_width,
-                    latent_height,
-                    upscale_method,
-                    "disabled",
-                )
-                s["samples"] = (
-                    video_cpu.reshape(b, t, c, latent_height, latent_width)
-                    .movedim(2, 1)
-                    .to(device)
-                )
-                del video_cpu
+        if not checkpoint_is_h3_compatible(str(upscaler_model)):
+            raise ValueError(
+                f"The selected Refine upscaler is not a compatible MiniMax H3 3D "
+                f"latent model: {upscaler_model}"
+            )
+
+        nested = bool(getattr(z, "is_nested", False))
+        streams = list(z.unbind()) if nested else [z]
+        video = streams[0]
+        squeezed = video.ndim == 4
+        if squeezed:
+            video = video.unsqueeze(0)
+        if video.ndim != 5:
+            raise ValueError(
+                f"Refine H3 latent upscale expected a 4D/5D video latent, got {tuple(video.shape)}"
+            )
+
+        logging.info(
+            "【UniversalDirectorConsole】Refine H3 latent upscale: %s → %dx%d "
+            "(latent %dx%d → %dx%d)",
+            upscaler_model,
+            int(width),
+            int(height),
+            int(video.shape[-1]),
+            int(video.shape[-2]),
+            latent_width,
+            latent_height,
+        )
+        upscaled_video = learned_latent_lift(
+            video,
+            (latent_height, latent_width),
+            str(upscaler_model),
+        )
+        if squeezed:
+            upscaled_video = upscaled_video.squeeze(0)
+        streams[0] = upscaled_video
+        s["samples"] = NestedTensor(tuple(streams)) if nested else upscaled_video
+
+        refine_model = model
+        if nested and len(streams) == 2 and streams[0].ndim == 5 and streams[1].ndim == 4:
+            refine_model = _tiled_model(
+                model,
+                [tuple(stream.shape) for stream in streams],
+            )
+            logging.info(
+                "【UniversalDirectorConsole】Refine spatial tiling enabled "
+                "(tile count selected from available VRAM)"
+            )
 
         try:
-            import comfy.model_management as model_management
-
             model_management.unload_all_models()
             try:
                 model_management.soft_empty_cache(force=True)
@@ -1785,10 +1785,9 @@ class UniversalH3LatentUpscale(io.ComfyNode):
                 e,
             )
 
-        # 回收 Python 不再使用的对象
+        # The next graph node re-stages the sampler model after the upscaler is offloaded.
         gc.collect()
 
-        # 清理 CUDA 缓存；仍被引用的张量不会因此被强行释放
         try:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -1798,7 +1797,7 @@ class UniversalH3LatentUpscale(io.ComfyNode):
                 e,
             )
 
-        return io.NodeOutput(s, model)
+        return io.NodeOutput(s, refine_model)
 
 class UniversalSaveLatent(io.ComfyNode):
     @classmethod
