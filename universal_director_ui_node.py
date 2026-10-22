@@ -172,7 +172,10 @@ def _probe_video_metadata(filename: str) -> dict:
                 ffprobe, "-v", "quiet", "-print_format", "json",
                 "-show_format", "-show_streams", full_path,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=15,
+            )
             if result.returncode == 0:
                 data = json.loads(result.stdout or "{}")
                 duration = float(data.get("format", {}).get("duration") or 0.0)
@@ -191,7 +194,10 @@ def _probe_video_metadata(filename: str) -> dict:
             logging.warning("neither ffprobe nor ffmpeg found; video metadata will be empty")
             return {}
         cmd = [ffmpeg_exe, "-hide_banner", "-i", full_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=15,
+        )
         # ffmpeg 把信息输出到 stderr，返回码非 0 是正常的
         stderr = result.stderr or ""
         duration = 0.0
@@ -204,6 +210,33 @@ def _probe_video_metadata(filename: str) -> dict:
     except Exception as exc:
         logging.warning("_probe_video_metadata failed for %s: %s", filename, exc)
         return {}
+
+
+def _build_action_video_references(media: dict) -> dict:
+    """Package uploaded videos as H3 motion references, not fixed-frame guides."""
+    videos = {}
+    for index in range(3):
+        filename = media.get(f"ref_video_{index + 1}", "")
+        if not filename or filename == "(none)":
+            continue
+        metadata = _probe_video_metadata(str(filename))
+        duration = float(metadata.get("duration") or 0.0)
+        if duration < 5.0 / 24.0:
+            raise ValueError(
+                f"无法将视频“{os.path.basename(str(filename))}”用作动作参考："
+                "未能读取有效时长，或视频短于 H3 要求的 5 帧。"
+            )
+        videos[index] = {
+            "file": str(filename),
+            "name": os.path.basename(str(filename)),
+            "start": 0.0,
+            "trimStart": 0.0,
+            "duration": duration,
+            "sourceDuration": duration,
+            "hasAudio": False,
+            "referenceMode": "reference",
+        }
+    return videos
 
 
 def _build_media_bundle(media: dict) -> dict:
@@ -350,7 +383,7 @@ class UniversalDirectorUI(io.ComfyNode):
         media_bundle = {
             "image_paths": {i: media.get(f"ref_image_{i+1}", "") for i in range(9) if media.get(f"ref_image_{i+1}") and media.get(f"ref_image_{i+1}") != "(none)"},
             "audio_paths": {i: media.get(f"ref_audio_{i+1}", "") for i in range(3) if media.get(f"ref_audio_{i+1}") and media.get(f"ref_audio_{i+1}") != "(none)"},
-            "videos": {}, # 视频底层会自己扫目录/读路径，如果需要
+            "videos": _build_action_video_references(media),
         }
 
         # 3. 直接交给底层出片

@@ -807,7 +807,7 @@ def _source_time(clip: dict[str, Any], timeline_second: float) -> float:
 
 def _reference_mode(clip: dict[str, Any]) -> str:
     mode = str(clip.get("referenceMode") or "guide")
-    return mode if mode in {"guide", "edit", "boundary"} else "guide"
+    return mode if mode in {"guide", "edit", "boundary", "reference"} else "guide"
 
 
 def _video_reference_specs(timeline: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1264,9 +1264,9 @@ def _build_references(
             if audio is not None:
                 ref_video_audios[f"ref_video_audio_{index}"] = audio
 
-    # A clip crossing the generated range is split deliberately: the overlap is
-    # a hard guide at its target position; only the source context outside the
-    # range is a prompt-addressable Video reference.
+    # A clip crossing the generated range is split deliberately: guide clips
+    # constrain target frames, while reference clips provide motion conditioning
+    # without forcing their frames into the generated timeline.
     for clip in sorted(clips, key=lambda c: _float(c.get("start"))):
         clip_start, clip_end = _float(clip.get("start")), _clip_end(clip)
         overlap_start = max(selection_start, _float(clip.get("start")))
@@ -1277,7 +1277,7 @@ def _build_references(
         path = _safe_input_path(str(clip["file"]))
         mode = _reference_mode(clip)
 
-        if mode in {"edit", "boundary"}:
+        if mode in {"edit", "boundary", "reference"}:
             if mode == "boundary":
                 first_idx = max(0, round((overlap_start - selection_start) * FPS))
                 last_idx = min(target_length - 1, max(first_idx, round((overlap_end - selection_start) * FPS) - 1))
@@ -1491,6 +1491,33 @@ def _execute_h3_independent_first(
     return conditioning, latent
 
 
+def _motion_reference_prompt(prompt: str, image_count: int, video_count: int) -> str:
+    if video_count < 1:
+        return prompt
+
+    video_tags = ", ".join(f"<Video {index}>" for index in range(1, video_count + 1))
+    if image_count:
+        image_tags = ", ".join(f"<Picture {index}>" for index in range(1, image_count + 1))
+        source_roles = (
+            f"Use {image_tags} as the authoritative source for subject identity, faces, "
+            "clothing, appearance, and scene."
+        )
+    else:
+        source_roles = (
+            "Use the written prompt as the authoritative source for subjects, appearance, "
+            "and scene; do not infer them from the video."
+        )
+
+    action_roles = (
+        f"Reference-role instructions: use {video_tags} only for movement, gestures, "
+        "action timing, and camera motion. Do not reproduce or continue its frames, "
+        "people, faces, clothing, objects, setting, colors, or composition. "
+        f"{source_roles} Generate a new video that follows the written prompt, "
+        "not a copy of the reference video."
+    )
+    return f"{prompt.rstrip()}\n\n{action_roles}" if prompt.strip() else action_roles
+
+
 async def _acquire_http_slot(semaphore: asyncio.Semaphore) -> bool:
     try:
         await asyncio.wait_for(semaphore.acquire(), timeout=2.0)
@@ -1530,8 +1557,16 @@ def _encode_timeline_plan(
         target_width, target_height, len(ref_images), len(ref_videos),
         len(ref_video_audios), len(ref_audios), len(guides), length,
     )
+    encoder_prompt = _motion_reference_prompt(prompt, len(ref_images), len(ref_videos))
+    if ref_videos:
+        log.info(
+            "Action-reference policy: %d video(s) provide motion only; %d image(s) "
+            "or the written prompt define appearance and scene.",
+            len(ref_videos),
+            len(ref_images),
+        )
     conditioning, latent = _execute_h3_independent_first(
-        clip, vae, audio_vae, prompt, target_width, target_height, length,
+        clip, vae, audio_vae, encoder_prompt, target_width, target_height, length,
         ref_image_size, ref_images, ref_videos, ref_video_audios, ref_audios,
     )
     conditioning = _apply_h3_guides(conditioning, latent, vae, audio_vae, guides)

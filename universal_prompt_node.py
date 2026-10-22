@@ -172,7 +172,10 @@ def _probe_video_metadata(filename: str) -> dict:
                 ffprobe, "-v", "quiet", "-print_format", "json",
                 "-show_format", "-show_streams", full_path,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=15,
+            )
             if result.returncode == 0:
                 data = json.loads(result.stdout or "{}")
                 duration = float(data.get("format", {}).get("duration") or 0.0)
@@ -191,7 +194,10 @@ def _probe_video_metadata(filename: str) -> dict:
             logging.warning("neither ffprobe nor ffmpeg found; video metadata will be empty")
             return {}
         cmd = [ffmpeg_exe, "-hide_banner", "-i", full_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=15,
+        )
         # ffmpeg 把信息输出到 stderr，返回码非 0 是正常的
         stderr = result.stderr or ""
         duration = 0.0

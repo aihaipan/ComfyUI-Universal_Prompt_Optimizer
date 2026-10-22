@@ -383,13 +383,12 @@ class UniversalFiniteBridge(io.ComfyNode):
             if isinstance(_snap, dict) and _snap:
                 valid_slots = [
                     (k, v) for k, v in _snap.items() 
-                    if isinstance(v, dict) and v.get("name")
+                    if k.startswith("ref_image_") and isinstance(v, dict) and v.get("name")
                 ]
                 valid_slots.sort(key=lambda x: int(x[0].split('_')[-1]) if x[0].split('_')[-1].isdigit() else 0)
                 _filtered = [{"file": str(v["name"]), "id": f"img-0-{k}"} for k, v in valid_slots]
-                if _filtered:
-                    all_images = _filtered
-                    logging.info(f"【UniversalDirectorConsole】 Single segment using independent media: {len(all_images)} images")
+                all_images = _filtered
+                logging.info(f"【UniversalDirectorConsole】 Single segment using independent media: {len(all_images)} images")
             else:
                 # 兼容旧逻辑（图片过滤）
                 _idx = _seg0.get("images")
@@ -513,7 +512,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                 # 提取有效路径，并按 ref_image_N 的数字排序，保证顺序不乱
                 valid_slots = [
                     (k, v) for k, v in seg_media_snapshot.items() 
-                    if isinstance(v, dict) and v.get("name")
+                    if k.startswith("ref_image_") and isinstance(v, dict) and v.get("name")
                 ]
                 valid_slots.sort(key=lambda x: int(x[0].split('_')[-1]) if x[0].split('_')[-1].isdigit() else 0)
                 
@@ -538,6 +537,13 @@ class UniversalFiniteBridge(io.ComfyNode):
             seg_ov = _seg_overlap(idx)
             start_frame = max(0, previous_end_frame - seg_ov)
             end_frame = start_frame + seg_length
+            segment_video_clips = [
+                {
+                    **clip,
+                    "start": start_frame / H3_FPS,
+                } if str(clip.get("referenceMode") or "") == "reference" else clip
+                for clip in video_clips
+            ]
 
             timeline = {
                 "version": 9,
@@ -545,7 +551,7 @@ class UniversalFiniteBridge(io.ComfyNode):
                 "globalPrompt": seg_prompt,
                 "images": seg_images,
                 "audios": list(all_audios),
-                "videoClips": list(video_clips),
+                "videoClips": segment_video_clips,
                 "selection": {"start": start_frame / H3_FPS, "duration": seg_dur},
                 "segmentConfig": {"count": 0, "activeIndex": 0, "mode": "timeline", "segments": []},
                 "videoAudioEnabled": True,

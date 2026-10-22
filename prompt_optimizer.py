@@ -1072,7 +1072,14 @@ def _system_prompt_minimax_h3(
             "immediately after the colon, write that section's content on the following line, and put one blank line "
             "between sections. Never place a heading and its content on the same line, and never join multiple sections "
             "into one paragraph. In subject_definitions, define reusable visible content as <Subject N> and cite "
-            "its source label using one short sentence and no more than four identifying visual traits; define "
+            "its source label using one concise sentence, including 3-6 identifying visual traits when its visual "
+            "data is available; for latent-only RefMod references, follow the special RefMod rule below. Define "
+            "each image-backed subject with the exact source tag inside that same definition, e.g. "
+            "'<Subject 1> is the same person shown in <picture 1>, with ...' or "
+            "'<Subject 1> 是 <picture 1> 中的同一位人物，...'; a concise parenthetical source note is acceptable "
+            "only when the sentence structure requires it. Never omit the tag or leave it only in another "
+            "section. If an image has multiple separately tracked subjects, cite its exact <picture N> tag in each "
+            "corresponding subject definition. "
             "standalone <Picture N> only for a concrete frame anchor. The <Subject N> index must strictly equal "
             "the numeric index of the source label it references (<picture N> for native references; "
             "<Video N> / <Picture N> / <Audio N> for RefMod references). For example, <picture 7> must be "
@@ -1085,7 +1092,7 @@ def _system_prompt_minimax_h3(
             "IMPORTANT: While strictly obeying this index mapping, you must still actively expand the user's "
             "idea into vivid, professional, and detailed actions, physical movements, camera movements, and a rich "
             "dramatic arc. Do not merely translate the user's input. Also, the visual content of each <picture N> "
-            "must be strictly read from the uploaded images to correctly distinguish characters from scenes. "
+            "must be read from image content actually supplied to you to correctly distinguish characters from scenes. "
             "Do not arbitrarily swap or reassign the identity of any character or scene. "
             "In summary, use one sentence beginning "
             "with a square-bracketed combination of only the relationships that apply: keyframe completion, "
@@ -1121,9 +1128,17 @@ def _system_prompt_minimax_h3(
             "SUBJECT WEIGHT — SHOT-LEVEL ONLY (MANDATORY): Every media label may carry an optional ' weight=X.X' "
             "suffix in range 0.1 to 2.0. Weight affects ONLY the shot design in detailed_description. It NEVER "
             "affects subject_definitions and NEVER weakens the identity of any referenced subject. "
-            "INVIOLABLE RULE for subject_definitions: every referenced subject MUST receive a complete identity "
-            "description with 3-6 identifying traits (silhouette, color, key equipment, distinctive markings, "
-            "material, scale), REGARDLESS of its weight. Visual consistency is the highest priority; a low-weight "
+            "INVIOLABLE RULE for subject_definitions: every referenced subject whose visual data is available "
+            "MUST receive a complete identity description with 3-6 directly visible, identifying traits, "
+            "REGARDLESS of its weight. Order traits by identity value, not convenience: for people, first preserve "
+            "the same face and visible facial identity from the exact reference, then visible skin tone, hairstyle, "
+            "and build; use clothing and accessories as additional distinguishing cues, never as substitutes for "
+            "identity. Do not infer ethnicity or identity beyond what the image clearly supports or the user states. "
+            "For animals, prioritize species/type, coat or feather pattern, distinctive markings, body shape, and "
+            "recognizable features; for robots, prioritize silhouette, materials, colors, and distinctive components; "
+            "for objects and environments, prioritize shape, layout, materials, and defining details. For latent-only "
+            "RefMod references, obey the RefMod rule and never invent concrete traits. "
+            "Visual consistency is the highest priority; a low-weight "
             "subject with a thin description will deform in the final video, which is a critical failure. Do not "
             "shorten or omit any subject definition based on weight. "
             "SUBJECT-TYPE RULE (MANDATORY): Every referenced subject that participates in the action MUST be "
@@ -1379,6 +1394,36 @@ def _system_prompt_minimax_h3(
         "or a voice; determine its role from the source label kind and from the user's "
         "request, and describe only the role it actually plays."
     ) if refmod else ""
+    subject_identity_rule = (
+        "REFERENCE-MATERIAL IDENTITY RULE (for image references): Inspect image content when it is actually supplied "
+        "to you. Before writing, classify each referenced "
+        "subject by type (person, animal, robot, object, or environment) and compare all relevant images. The "
+        "reference image—not your imagination or the requested cinematic style—is the authority for identity and "
+        "appearance. For a person, explicitly anchor the definition to the same individual and preserve the visible "
+        "face/facial identity and overall appearance shown in its exact <picture N>; do not replace, westernize, "
+        "beautify, age-shift, or redesign the person. Describe only clearly visible identity cues. Do not infer an "
+        "ethnic identity from appearance; when the user explicitly supplies one, preserve it. Then add the strongest "
+        "visible distinguishing traits (hairstyle, build, outfit, and accessories). Compare people together so their "
+        "definitions do not collapse into the same generic clothing/color description, but never let clothing "
+        "differences replace facial identity. For animals, preserve the same individual animal, species/type, visible "
+        "coat/feather/skin pattern, markings, body shape, and distinctive features. For robots, preserve the same "
+        "design, silhouette, materials, colors, and signature components. For objects and environments, preserve "
+        "their defining shape, layout, materials, and spatial arrangement. If image data is unavailable, use only "
+        "traits explicitly supplied by the user. Keep each definition explicitly linked to its exact <picture N> "
+        "source and keep the matching <Subject N> label in every shot where it appears. Do not transfer traits "
+        "between subjects. Unless the user requests a change, maintain the same identity and distinguishing "
+        "appearance throughout the video."
+    ) if full_reference and not refmod else ""
+    refmod_identity_rule = (
+        "REFMOD DIRECTOR-ONLY RULE: RefMod visual content is supplied to the video model as latent conditioning "
+        "and is NOT visible to you. Do not describe, infer, or invent what a RefMod person, animal, robot, object, "
+        "or scene looks like. Keep its subject definition brief: identify only the corresponding capitalized "
+        "<Picture N>/<Video N> source and state that its complete identity/design/appearance must follow that "
+        "reference model. Do not list face, skin tone, clothing, markings, materials, or other concrete traits. "
+        "Do not spend prompt detail repeating appearance; devote the available detail to the shot plan—blocking, "
+        "interaction, action progression, timing, camera, and story beats. Use the same <Subject N> reference "
+        "consistently in every relevant shot."
+    ) if refmod else ""
     video_rule = (
         "VIDEO REFERENCE RULE (MANDATORY): <video N> labels refer to uploaded videos used for "
         "MOTION / ACTION transfer. Their frames are NOT provided to you. Write ONLY the exact "
@@ -1407,11 +1452,10 @@ def _system_prompt_minimax_h3(
         "final production-ready prompt without explanations, markdown fences, filenames, or invented media. "
         "Preserve the user's intent and every supplied dialogue, lyric, and visible-text word verbatim; do not "
         "invent dialogue or lyrics that were not provided. This is a video-generation prompt, not image captioning "
-        "or visual reverse-prompting. Reference images are already passed into model conditioning, so identify each "
-        "visual subject only with the minimum distinctive cues needed to disambiguate it: usually gender or subject "
-        "type, main clothing, main hairstyle, and scene. Do not describe facial features, lighting, pose, background "
-        "objects, or composition exhaustively unless they are essential to the requested motion or must change over "
-        "time. Spend most words on what happens after the reference frame: causally connected actions, reactions, "
+        "or visual reverse-prompting. For image-reference tasks, keep identity definitions concise but explicitly "
+        "anchored to their source images; do not use a generic 'minimum cues' rule to omit visible identity anchors. "
+        "For RefMod tasks, do not describe latent-only appearance and prioritize shot direction. In all modes, spend "
+        "most remaining detail on what happens after the reference frame: causally connected actions, reactions, "
         "story progression, timing, performance, camera behavior, and audio-visual synchronization. Develop the "
         "user's idea into concrete visible beats that fit the duration: establish the situation, let the central "
         "action evolve through meaningful intermediate changes, add a restrained climax or reveal when appropriate, "
@@ -1440,7 +1484,7 @@ def _system_prompt_minimax_h3(
         "information. Do not create labels outside the supplied label list, renumber labels, "
         "or replace labels with filenames. "
         f"Task={task}; duration={duration:.2f}s; available labels={', '.join(labels) or 'none'}. "
-        f"{label_rule} {video_rule} {keyframe_rule} {audio_rule} {refmod_rule} {structure}{pacing_rule}{singing_rule}{transfer_rule} {dialogue_rule} "
+        f"{label_rule} {video_rule} {keyframe_rule} {audio_rule} {refmod_rule} {subject_identity_rule} {refmod_identity_rule} {structure}{pacing_rule}{singing_rule}{transfer_rule} {dialogue_rule} "
         f"{subject_shorthand_rule} "
         "Audio items are label-only references; never claim you listened to them. Before returning, silently check "
         "that every required section is present in the correct order, every used label exists, no filename appears, "
@@ -2301,6 +2345,49 @@ def _ensure_fl2va_picture_labels(text: str, task: str, duration: float, output_l
     return f"{alignment}\n\n{text}".strip()
 
 
+def _ensure_subject_picture_sources(text: str, media: list[dict], output_language: str) -> str:
+    """Keep each image-backed Subject definition explicitly linked to its source label."""
+    labels: dict[int, str] = {}
+    for item in media:
+        if not isinstance(item, dict) or str(item.get("kind") or "").lower() != "image":
+            continue
+        match = re.search(r"<picture\s+(\d+)(?:\s+[^>]*)?>", str(item.get("label") or ""), re.IGNORECASE)
+        if match:
+            labels[int(match.group(1))] = match.group(0)
+    if not labels:
+        return text
+
+    section_match = re.search(
+        r"(?is)(?P<body>\bsubject_definitions\s*:\s*.*?)(?=\n\s*(?:summary|retention_analysis|"
+        r"detailed_description|overall_soundscape|non_diegetic_music)\s*:|$)",
+        str(text),
+    )
+    if not section_match:
+        return text
+
+    body = section_match.group("body")
+    for index, source_label in labels.items():
+        subject_match = re.search(rf"<Subject\s+{index}\b[^>]*>", body, re.IGNORECASE)
+        if not subject_match:
+            continue
+        definition_end = re.search(r"<Subject\s+\d+\b", body[subject_match.end():], re.IGNORECASE)
+        end = subject_match.end() + definition_end.start() if definition_end else len(body)
+        definition = body[subject_match.start():end]
+        if re.search(rf"<picture\s+{index}(?:\s+[^>]*)?>", definition, re.IGNORECASE):
+            continue
+        insert_at = subject_match.end()
+        tail = body[insert_at:]
+        if str(output_language).lower() in {"中文", "chinese", "zh", "zh-cn"}:
+            source_note = f"（对应 {source_label}）"
+            tail = tail.lstrip(" \t")
+        else:
+            source_note = f" (from {source_label}) "
+            tail = tail.lstrip(" \t")
+        body = body[:insert_at] + source_note + tail
+
+    return str(text)[:section_match.start("body")] + body + str(text)[section_match.end("body"):]
+
+
 def _extract_openai(data: dict) -> str:
     try:
         choice = data["choices"][0]
@@ -2733,14 +2820,18 @@ async def _repair_output_language(text: str, config: dict, payload: dict) -> str
             "At MM:SS.mmm, <Picture N>/<Video N>/<Subject N>, <d>[Lang]</d> tags, retention "
             "markers (fully_preserved, partially_preserved, attribute_transfer, weak_reference, "
             "fully_copy, partially_copy, reference), and fixed alignment sentences in English. "
-            "Preserve exact dialogue, lyrics, brand copy and visible scene text in their "
+            "Preserve every subject definition, its distinguishing visual traits, and its exact source-label "
+            "mapping. Never merge subjects or move appearance details between them. Preserve exact dialogue, "
+            "lyrics, brand copy and visible scene text in their "
             "original language. Return only the rewritten prompt with no preface, no explanation, "
             "no markdown fences."
         )
     else:
         system_prompt = (
             "You are a language editor. Rewrite the supplied prompt so that ALL descriptive "
-            "prose is in English. Keep field names, labels and markers unchanged. Preserve "
+            "prose is in English. Keep field names, labels and markers unchanged. Preserve every subject "
+            "definition, its distinguishing visual traits, and its exact source-label mapping. Never merge "
+            "subjects or move appearance details between them. Preserve "
             "exact dialogue, lyrics and visible text unchanged. Return only the rewritten "
             "prompt with no preface, no explanation, no markdown fences."
         )
@@ -2786,6 +2877,13 @@ async def _run_prompt_optimization(config: dict, payload: dict) -> str:
             str(payload.get("prompt") or ""),
             str(config.get("output_language") or "English"),
         )
+        if str(payload.get("task") or "").upper() in {"REF2VA", "HYBRID"}:
+            media = payload.get("media") if isinstance(payload.get("media"), list) else []
+            formatted = _ensure_subject_picture_sources(
+                formatted,
+                media,
+                str(config.get("output_language") or "English"),
+            )
         return _normalize_subject_shorthand(formatted)
     if template == "image":
         formatted = _format_prompt_sections(formatted)
