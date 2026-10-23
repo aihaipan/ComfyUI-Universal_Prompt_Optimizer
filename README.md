@@ -121,23 +121,24 @@ AIMixer R2V 桥接：连接至 AIMixer 导演台（单段）。
 
 TimelineDirector 桥接：连接至小黄瓜采样器（多段 + 二采）。
 
-📸 界面截图
-导演台 Max 核心 UI 与节点工作流
-https://docs/screenshots/Universal%20MiniMax_H3%E5%AF%BC%E6%BC%94%E5%8F%B0Max_UI.png
-https://docs/screenshots/Universal%20MiniMax_H3%E5%AF%BC%E6%BC%94%E5%8F%B0Max%E5%B7%A5%E4%BD%9C%E6%B5%81.png
+### 📸 界面截图
 
-全自动提示词引擎（优化前 / 优化中 / 优化后 / 自动优化设置）
-https://docs/screenshots/%E4%BC%98%E5%8C%96%E5%89%8D.png
-https://docs/screenshots/%E4%BC%98%E5%8C%96%E4%B8%AD.png
-https://docs/screenshots/%E4%BC%98%E5%8C%96%E5%90%8E.png
-https://docs/screenshots/%E8%87%AA%E5%8A%A8%E4%BC%98%E5%8C%96%E8%AE%BE%E7%BD%AE.png
+**导演台 Max 核心 UI 与节点工作流**
+![导演台 Max UI](docs/screenshots/Universal%20MiniMax_H3%E5%AF%BC%E6%BC%94%E5%8F%B0Max_UI.png)
+![导演台 Max 工作流](docs/screenshots/Universal%20MiniMax_H3%E5%AF%BC%E6%BC%94%E5%8F%B0Max%E5%B7%A5%E4%BD%9C%E6%B5%81.png)
 
-智能故事板与段间重叠
-https://docs/screenshots/%E6%AE%B5%E9%97%B4%E9%87%8D%E5%8F%A0%E8%AE%BE%E7%BD%AE.png
+**全自动提示词引擎（优化前 / 优化中 / 优化后 / 自动优化设置）**
+![优化前](docs/screenshots/%E4%BC%98%E5%8C%96%E5%89%8D.png)
+![优化中](docs/screenshots/%E4%BC%98%E5%8C%96%E4%B8%AD.png)
+![优化后](docs/screenshots/%E4%BC%98%E5%8C%96%E5%90%8E.png)
+![自动优化设置](docs/screenshots/%E8%87%AA%E5%8A%A8%E4%BC%98%E5%8C%96%E8%AE%BE%E7%BD%AE.png)
 
-动态模型加载器与 RefMod 支持
-https://docs/screenshots/%E5%8A%A8%E6%80%81%E6%A8%A1%E5%9E%8B%E5%8A%A0%E8%BD%BD%E5%99%A8.png
-https://docs/screenshots/Refmod.png
+**智能故事板与段间重叠**
+![段间重叠设置](docs/screenshots/%E6%AE%B5%E9%97%B4%E9%87%8D%E5%8F%A0%E8%AE%BE%E7%BD%AE.png)
+
+**动态模型加载器与 RefMod 支持**
+![动态模型加载器](docs/screenshots/%E5%8A%A8%E6%80%81%E6%A8%A1%E5%9E%8B%E5%8A%A0%E8%BD%BD%E5%99%A8.png)
+![RefMod](docs/screenshots/Refmod.png)
 
 🗂️ 示例工作流
 直接在 ComfyUI 中拖入这些 JSON 文件即可加载：
