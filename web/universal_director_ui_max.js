@@ -186,8 +186,8 @@ function createPanel(node) {
         .ghupo-audio{aspect-ratio:1}
         .ghupo-audio .ghupo-card-name{font-size:7px;padding-left:3px}
         .ghupo-audio-icon{display:flex;align-items:center;justify-content:center;height:100%;color:#0aa4d6;font-size:48px;background:linear-gradient(135deg,#14222d 0%,#1a3040 100%)}
-        .ghupo-tools{display:flex;align-items:center;gap:7px;padding:5px 7px;background:#14202c;border:1px solid #2c4255;border-radius:7px;min-height:30px;box-sizing:border-box;flex-wrap:wrap}
-        .ghupo-tools>.ghupo-duration{height:auto;min-height:34px;margin-right:0;padding:2px 4px;gap:4px;box-sizing:border-box}
+        .ghupo-tools{display:flex;align-items:center;gap:8px;padding:5px 9px;background:#14202c;border:1px solid #2c4255;border-radius:7px;min-height:34px;box-sizing:border-box;flex-wrap:wrap}
+        .ghupo-tools>.ghupo-duration{height:auto;min-height:38px;margin-right:0;padding:3px 8px;gap:7px;box-sizing:border-box}
         .ghupo-template{max-width:112px;height:17px;padding:0 2px;border:1px solid #2c4255;border-radius:3px;background:#14202c;color:#a9bac8;font:9px/15px Arial,sans-serif;outline:none;cursor:pointer}
         .ghupo-elapsed{display:none;color:#617684;font:9px/17px Arial,sans-serif}
         .ghupo-elapsed.visible{display:inline-block}
@@ -223,10 +223,12 @@ function createPanel(node) {
         .ghupo-split-toggle{display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;color:#45c9ef}
         .ghupo-split-stage{flex:1 1 150px;min-width:140px}
         .ghupo-upscale-model-row>span{flex:0 0 auto;color:#9aabb8}
-        .ghupo-prompt-toolbar{display:flex;align-items:center;gap:7px;min-height:34px;padding:3px 5px;flex-shrink:0}
+        .ghupo-prompt-toolbar{display:flex;align-items:center;gap:7px;min-height:34px;padding:3px 5px;flex-shrink:0;flex-wrap:wrap}
         .ghupo-prompt-title{flex:0 0 auto;color:#d7e3ef;font-size:12px;font-weight:700;white-space:nowrap}
         .ghupo-prompt-hint{flex:1;min-width:0;overflow:hidden;color:#718797;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
-        .ghupo-prompt-actions{display:flex;align-items:center;gap:5px;margin-left:auto;flex:0 0 auto}
+        .ghupo-prompt-actions{display:flex;align-items:center;gap:5px;margin-left:auto;flex:0 1 auto;min-width:0}
+        .ghupo-prompt-actions .ghupo-template{width:118px;max-width:140px;height:24px;padding:0 6px;border-radius:4px;background:#172733;color:#b9d6e3;font:10px Arial,sans-serif}
+        .ghupo-prompt-actions .ghupo-model{display:inline-flex;align-items:center;flex:0 1 220px;min-width:80px;max-width:280px;height:24px;margin:0 3px 0 8px;padding:0 8px;border:1px solid #2c5368;border-radius:12px;background:rgba(10,164,214,.08);color:#8fb5c8;font:10px/1.2 Arial,sans-serif;text-align:left}
         .ghupo-prompt-actions .ghupo-elapsed{min-width:48px;text-align:right;color:#45c9ef;font:10px/1.3 Arial,sans-serif;white-space:nowrap}
         .ghupo-prompt-action{height:27px;padding:0 9px;border:1px solid #334a5d;border-radius:5px;background:#192734;color:#9aabb8;font:11px Arial,sans-serif;cursor:pointer;white-space:nowrap}
         .ghupo-prompt-action:hover{border-color:#4c7187;background:#203240;color:#e1e9ef}
@@ -335,6 +337,14 @@ function createPanel(node) {
         .ghupo-sb-overlap{display:flex;align-items:center;gap:5px;margin-left:4px;padding-left:8px;border-left:1px solid #334a5d;color:#8397a6;font-size:10px;white-space:nowrap}
         .ghupo-sb-overlap .ghupo-duration-input{width:108px;height:20px;padding:0 5px;border:1px solid #334a5d;border-radius:4px;background:#101b26;color:#cbd8e1;font:10px Arial;box-sizing:border-box;flex:0 0 108px}
         .ghupo-sb-overlap .ghupo-duration-input:focus{border-color:#0aa4d6;outline:none}
+        .ghupo-sb-overlap-toggle,.ghupo-sb-overlap-confirm{height:24px;padding:0 9px;border:1px solid #40586b;border-radius:4px;background:#203343;color:#d1e2ed;font:10px Arial;cursor:pointer;white-space:nowrap}
+        .ghupo-sb-overlap-toggle:hover,.ghupo-sb-overlap-confirm:hover{background:#2a465a}
+        .ghupo-storyboard.ghupo-overlap-edit-active{border-color:#e8a844;box-shadow:0 0 0 1px rgba(232,168,68,.35)}
+        .ghupo-overlap-edit-active .ghupo-sb-header{background:#4b351d}
+        .ghupo-overlap-edit-active .ghupo-sb-overlap{color:#ffe0a3}
+        .ghupo-overlap-edit-active .ghupo-sb-overlap-toggle{background:#9a5c16;border-color:#e8a844;color:#fff4d9;font-weight:700}
+        .ghupo-overlap-hint{display:none;padding:5px 9px;background:#382b1b;color:#ffe0a3;border-top:1px solid #705126;font:10px/1.4 Arial,sans-serif}
+        .ghupo-overlap-edit-active .ghupo-overlap-hint{display:block}
         .ghupo-sb-duration{margin:0 2px 0 5px;flex:0 0 auto}
         .ghupo-sb-duration .ghupo-duration-input{cursor:text}
         @media (max-width:560px){.ghupo-sb-header{flex-wrap:wrap}.ghupo-sb-meta{margin-left:auto}.ghupo-sb-overlap{order:5;margin:2px 0 2px 18px;padding-left:0;border-left:0}.ghupo-tools{flex-wrap:wrap;height:auto}}
@@ -356,6 +366,12 @@ function createPanel(node) {
         .ghupo-tl-seg.edge-hover{cursor:ew-resize}
         .ghupo-tl-seg.dragging{opacity:.35;cursor:grabbing}
         .ghupo-tl-seg.active{box-shadow:0 0 0 2px #0aa4d6 inset}
+        .ghupo-overlap-edit-active .ghupo-tl-seg{cursor:default;filter:brightness(.82)}
+        .ghupo-tl-overlap-zone{position:absolute;top:6px;bottom:6px;z-index:20;box-sizing:border-box;border:2px solid #ffd166;border-radius:5px;background:repeating-linear-gradient(135deg,rgba(255,209,102,.42) 0 5px,rgba(255,209,102,.12) 5px 10px);pointer-events:none}
+        .ghupo-tl-overlap-zone-label{position:absolute;top:3px;left:50%;transform:translateX(-50%);padding:2px 5px;border-radius:3px;background:#76521e;color:#fff2c8;font:bold 10px Arial;white-space:nowrap}
+        .ghupo-tl-overlap-handle{position:absolute;top:0;bottom:0;left:0;width:12px;transform:translateX(-50%);z-index:22;border:0;border-left:3px solid #fff0b5;background:transparent;cursor:ew-resize;pointer-events:auto}
+        .ghupo-tl-overlap-handle:after{content:"↔";position:absolute;left:-8px;top:50%;transform:translateY(-50%);width:16px;height:18px;border-radius:4px;background:#9a681d;color:#fff6d9;text-align:center;font:bold 11px/18px Arial;box-shadow:0 1px 4px #000}
+        .ghupo-overlap-edit-active .ghupo-tl-track{background:#171b20}
         .ghupo-tl-seg-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;margin-bottom:3px;font-size:12px}
         .ghupo-tl-seg-time{opacity:.7;font-size:10px}
         .ghupo-tl-seg-thumbs{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap}
@@ -497,20 +513,40 @@ function createPanel(node) {
 
     // ---- 【Max专属】分辨率计算器 ----
     const dirSizeGroup = make("span"); dirSizeGroup.className = "ghupo-duration";
-    const arSelect = make("select"); arSelect.className = "ghupo-duration-input"; arSelect.style.width = "50px";
+    const arSelect = make("select"); arSelect.className = "ghupo-duration-input"; arSelect.style.width = "58px";
     arSelect.innerHTML = `<option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option>`;
-    const mpInput = make("input"); mpInput.type = "number"; mpInput.step = "0.1"; mpInput.value = "0.4"; mpInput.className = "ghupo-duration-input"; mpInput.style.width = "48px"; mpInput.title = "百万像素";
-    const refineMPInput = make("input"); refineMPInput.type = "number"; refineMPInput.min = "0.1"; refineMPInput.step = "0.1"; refineMPInput.value = mpInput.value; refineMPInput.className = "ghupo-duration-input"; refineMPInput.style.width = "58px"; refineMPInput.title = "Refine 二采目标百万像素，默认为一采分辨率";
+    const mpInput = make("input"); mpInput.type = "number"; mpInput.min = "0.1"; mpInput.step = "0.01"; mpInput.value = "0.4"; mpInput.className = "ghupo-duration-input"; mpInput.style.width = "58px"; mpInput.title = "以百万像素为单位设置输出分辨率";
+    const refineMPInput = make("input"); refineMPInput.type = "number"; refineMPInput.min = "0.1"; refineMPInput.step = "0.01"; refineMPInput.value = mpInput.value; refineMPInput.className = "ghupo-duration-input"; refineMPInput.style.width = "58px"; refineMPInput.title = "Refine 二采目标百万像素，默认为一采分辨率";
     
     // 【新增】一采步数
-    const stepsInput = make("input"); stepsInput.type = "number"; stepsInput.value = "8"; stepsInput.className = "ghupo-duration-input"; stepsInput.style.width = "42px"; stepsInput.title = "一采步数";
+    const stepsInput = make("input"); stepsInput.type = "number"; stepsInput.value = "8"; stepsInput.className = "ghupo-duration-input"; stepsInput.style.width = "50px"; stepsInput.title = "一采步数";
     
+    const OFFICIAL_16_9_DIMENSIONS = {
+        "0.2": [608, 352],
+        "0.3": [736, 416],
+        "0.4": [864, 480],
+        "0.5": [960, 544],
+        "0.6": [1056, 608],
+        "0.7": [1152, 640],
+        "0.8": [1216, 672],
+        "0.9": [1280, 736],
+        "0.98": [1344, 768],
+        "1": [1376, 768],
+        "1.2": [1504, 832],
+        "1.5": [1664, 928],
+        "1.8": [1824, 1024],
+        "2": [1920, 1088],
+    };
     const calcDimensions = (requestedMP = parseFloat(mpInput.value)) => {
         const ar = arSelect.value.split(":");
         const wRatio = parseInt(ar[0]) || 16;
         const hRatio = parseInt(ar[1]) || 9;
         const baseMP = parseFloat(mpInput.value) || 0.4;
         const mp = Number.isFinite(requestedMP) && requestedMP > 0 ? requestedMP : baseMP;
+        if (wRatio === 16 && hRatio === 9) {
+            const official = OFFICIAL_16_9_DIMENSIONS[String(Number(mp.toFixed(2)))];
+            if (official) return { w: official[0], h: official[1] };
+        }
         let w = Math.sqrt(mp * 1000000 * (wRatio / hRatio));
         let h = w * (hRatio / wRatio);
         w = Math.round(w / 32) * 32;
@@ -521,13 +557,13 @@ function createPanel(node) {
     arSelect.onchange = () => { if (typeof persist === "function") persist(); };
     mpInput.onchange = () => { if (typeof persist === "function") persist(); };
 
-    dirSizeGroup.append(make("span", {}, "比例"), arSelect, make("span", {}, "MP"), mpInput, make("span", {}, "步数"), stepsInput);
+    dirSizeGroup.append(make("span", {}, "比例"), arSelect, make("span", {}, "百万像素MP"), mpInput, make("span", {}, "步数"), stepsInput);
 
     // ---- 【Max专属】二采与音频独立面板 ----
     const audioSelect = make("select"); 
     audioSelect.className = "ghupo-duration-input"; 
     audioSelect.style.flex = "1";
-    audioSelect.innerHTML = `<option value="参考音色">参考音色</option><option value="强制使用音频1">强制使用音频1</option>`;
+    audioSelect.innerHTML = `<option value="参考音色">默认</option><option value="强制使用音频1">强制使用音频1</option>`;
     
     const spCheck = make("input"); spCheck.type = "checkbox"; spCheck.style.margin = "0";
 
@@ -550,6 +586,9 @@ function createPanel(node) {
     dirAdvancedSummary.appendChild(dirAdvancedStatus);
     const dirAdvancedContent = make("div");
     dirAdvancedContent.className = "ghupo-advanced-content";
+    dirAdvancedPanel.addEventListener("toggle", () => {
+        if (typeof persist === "function") persist();
+    });
     dirAdvancedPanel.append(dirAdvancedSummary, dirAdvancedContent);
 
     const audioSection = make("div");
@@ -571,13 +610,45 @@ function createPanel(node) {
 
     const overlapRow = make("div");
     overlapRow.className = "ghupo-sb-overlap";
-    overlapRow.append(make("span", {}, "重叠帧"), overlapInput);
+    overlapRow.append(make("span", {}, "重叠帧"));
+
+    let overlapEditMode = false;
+    const overlapModeToggle = make("button", {}, "调整重叠");
+    overlapModeToggle.className = "ghupo-sb-overlap-toggle";
+    const setOverlapEditMode = (enabled, persistNow = true) => {
+        overlapEditMode = !!enabled;
+        storyboard.classList.toggle("ghupo-overlap-edit-active", overlapEditMode);
+        overlapRow.classList.toggle("ghupo-overlap-edit-active", overlapEditMode);
+        overlapInput.disabled = !overlapEditMode;
+        overlapModeToggle.textContent = overlapEditMode ? "退出编辑" : "调整重叠";
+        overlapInput.title = overlapEditMode
+            ? "可视化重叠编辑已开启：拖动段边界可调整重叠帧数，点击确认退出"
+            : "段间重叠帧数；填 0 为硬切，留空默认 24 帧";
+        if (persistNow && typeof persist === "function") persist();
+    };
+    const overlapConfirmBtn = make("button", {}, "确认");
+    overlapConfirmBtn.className = "ghupo-sb-overlap-confirm";
+    overlapConfirmBtn.style.display = "none";
+    overlapConfirmBtn.onclick = (e) => {
+        e.stopPropagation();
+        setOverlapEditMode(false, true);
+        overlapConfirmBtn.style.display = "none";
+        if (typeof renderStoryboard === "function") renderStoryboard();
+    };
+    overlapModeToggle.onclick = (e) => {
+        e.stopPropagation();
+        const next = !overlapEditMode;
+        setOverlapEditMode(next, true);
+        overlapConfirmBtn.style.display = next ? "inline-flex" : "none";
+        if (typeof renderStoryboard === "function") renderStoryboard();
+    };
+    overlapRow.append(overlapInput, overlapModeToggle, overlapConfirmBtn);
 
     const refineMPRow = make("div");
     refineMPRow.className = "ghupo-refine-mp";
     const refineResolutionLabel = make("span");
     refineResolutionLabel.className = "ghupo-refine-resolution";
-    refineMPRow.append(make("span", {}, "Refine目标MP"), refineMPInput, refineResolutionLabel);
+    refineMPRow.append(make("span", {}, "Refine目标百万像素MP"), refineMPInput, refineResolutionLabel);
 
     const splitRunCheck = make("input");
     splitRunCheck.type = "checkbox";
@@ -639,9 +710,22 @@ function createPanel(node) {
 
     dirAdvancedContent.append(audioSection, upscaleSection);
 
-    [spCheck, spModeSelect, splitRunCheck, splitStageSelect, refineMPInput, arSelect, mpInput].forEach(control => {
+    [
+        spCheck,
+        spModeSelect,
+        spModelSelect,
+        spStepsInput,
+        splitRunCheck,
+        splitStageSelect,
+        refineMPInput,
+        arSelect,
+        mpInput,
+        audioSelect,
+        overlapInput,
+    ].forEach(control => {
         control.addEventListener("change", () => {
             updateSplitRunControls();
+            if (control === overlapInput && typeof renderStoryboard === "function") renderStoryboard();
             if (typeof persist === "function") persist();
         });
     });
@@ -690,7 +774,7 @@ function createPanel(node) {
     const historyBtn = make("button", {}, "历史"); historyBtn.className = "ghupo-prompt-action";
     historyBtn.title = t("Optimization history");
     const gearBtn = make("button", {}, "⚙ 设置"); gearBtn.className = "ghupo-prompt-action";
-    tools.append(dirSizeGroup, templateSelect, modelName);
+    tools.append(dirSizeGroup);
     root.appendChild(tools);
     root.appendChild(dirAdvancedPanel);
 
@@ -936,6 +1020,8 @@ function createPanel(node) {
     const storyboardTitle = make("span", {}, t("故事板")); storyboardTitle.className = "ghupo-sb-title";
     const storyboardMeta = make("span"); storyboardMeta.className = "ghupo-sb-meta";
     const storyboardToggle = make("span", {}, "▾"); storyboardToggle.className = "ghupo-sb-toggle";
+    const overlapHint = make("div", {}, "重叠编辑已开启：拖动每个黄色交叠区左侧的 ↔ 手柄调整帧数；普通段块不会改变时长。完成后点击“确认”。");
+    overlapHint.className = "ghupo-overlap-hint";
     // 【L2-b】"+" 加段按钮
     const storyboardAddBtn = make("button", {}, "＋ 加段");
     storyboardAddBtn.className = "ghupo-sb-add";
@@ -955,7 +1041,8 @@ function createPanel(node) {
     const tlTrack = make("div"); tlTrack.className = "ghupo-tl-track";
     tlInner.append(tlRuler, tlTrack);
     storyboardBody.append(tlInner);
-    storyboard.append(storyboardHeader, storyboardBody);
+    storyboard.append(storyboardHeader, overlapHint, storyboardBody);
+    setOverlapEditMode(false, false);
     let storyboardCollapsed = false;
     storyboardHeader.onclick = () => {
         storyboardCollapsed = !storyboardCollapsed;
@@ -968,7 +1055,7 @@ function createPanel(node) {
     const promptTitle = make("span", {}, "提示词优化"); promptTitle.className = "ghupo-prompt-title";
     const promptHint = make("span", {}, "先编排提示词，再一键生成优化稿"); promptHint.className = "ghupo-prompt-hint";
     const promptActions = make("div"); promptActions.className = "ghupo-prompt-actions";
-    promptActions.append(resetBtn, historyBtn, gearBtn, elapsed, optBtn);
+    promptActions.append(resetBtn, historyBtn, gearBtn, templateSelect, modelName, elapsed, optBtn);
     promptToolbar.append(promptTitle, promptHint, promptActions);
     root.appendChild(promptToolbar);
 
@@ -1200,6 +1287,8 @@ function createPanel(node) {
             dirSecondPassMode: spModeSelect.value,
             dirExecMode: selectedExecMode(),
             dirAudioMode: audioSelect.value,
+            dirAdvancedOpen: dirAdvancedPanel.open,
+            dirOverlapEditMode: overlapEditMode,
             dirBridgeOverlaps: overlapInput.value,
         });
         node.properties = node.properties || {};
@@ -2228,8 +2317,41 @@ function createPanel(node) {
     let timelineZoom = null;
     const MIN_ZOOM = 6;
     const MAX_ZOOM = 600;
+    const STORYBOARD_FPS = 24;
+    function alignedSegmentFrames(duration) {
+        return Math.max(1, Math.round((duration * STORYBOARD_FPS - 5) / 17) * 17 + 5);
+    }
+    function readStoryboardOverlaps() {
+        const raw = String(overlapInput.value || "").trim();
+        let parsed = null;
+        if (raw) {
+            try {
+                const value = JSON.parse(raw);
+                if (Array.isArray(value)) parsed = value;
+            } catch {}
+        }
+        return segments.map((segment, index) => {
+            if (index === 0) return 0;
+            const value = parsed && index < parsed.length
+                ? Number(parsed[index])
+                : 24;
+            const requested = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 24;
+            const previousFrames = alignedSegmentFrames(Number(segments[index - 1]?.duration) || 5);
+            const currentFrames = alignedSegmentFrames(Number(segment.duration) || 5);
+            return Math.min(requested, previousFrames, currentFrames);
+        });
+    }
+    function writeStoryboardOverlaps(overlaps) {
+        overlapInput.value = JSON.stringify(overlaps.map((value, index) => (
+            index === 0 ? 0 : Math.max(0, Math.floor(Number(value) || 0))
+        )));
+    }
     function getTotalDuration() {
-        return segments.reduce((s, seg) => s + (Number(seg.duration) || 0), 0) || 1;
+        const duration = segments.reduce((sum, seg) => sum + (Number(seg.duration) || 0), 0);
+        const overlapSeconds = overlapEditMode
+            ? readStoryboardOverlaps().slice(1).reduce((sum, frames) => sum + frames / STORYBOARD_FPS, 0)
+            : 0;
+        return Math.max(0.1, duration - overlapSeconds) || 1;
     }
     function getEffectiveZoom() {
         if (typeof timelineZoom === "number" && timelineZoom > 0) {
@@ -2269,17 +2391,21 @@ function createPanel(node) {
                 return;
             }
             // 【L2-b·缩放】像素布局：每秒 = zoom 像素
+            const overlaps = overlapEditMode ? readStoryboardOverlaps() : segments.map(() => 0);
             const total = getTotalDuration();
             const zoom = getEffectiveZoom();
             tlInner.style.width = (total * zoom) + "px";
 
-            // 1. 计算每段起点/终点（累加式）
+            // 1. 计算每段位置；每段从前一段结束位置减去其重叠时长后开始。
             let cursor = 0;
             const segInfo = segments.map((s, i) => {
                 const dur = Number(s.duration) || 5;
-                const start = cursor;
-                cursor += dur;
-                return { index: i, start, end: cursor, duration: dur, seg: s };
+                const overlapFrames = overlaps[i] || 0;
+                const overlapSeconds = i === 0 ? 0 : overlapFrames / STORYBOARD_FPS;
+                const start = Math.max(0, cursor - overlapSeconds);
+                const end = start + dur;
+                cursor = end;
+                return { index: i, start, end, duration: dur, overlapFrames, overlapSeconds, seg: s };
             });
 
             // 2. 渲染刻度尺（主刻度带标签 + 次刻度短竖线）
@@ -2407,6 +2533,29 @@ function createPanel(node) {
                 tlTrack.appendChild(segEl);
             }
 
+            if (overlapEditMode) {
+                for (const info of segInfo) {
+                    if (info.index === 0) continue;
+                    const zone = make("div");
+                    zone.className = "ghupo-tl-overlap-zone";
+                    zone.style.left = `${info.start * zoom}px`;
+                    zone.style.width = `${Math.max(2, info.overlapSeconds * zoom)}px`;
+                    zone.style.zIndex = String(20 + info.index);
+                    if (info.overlapFrames > 0) {
+                        const label = make("span", {}, `${info.overlapFrames} 帧`);
+                        label.className = "ghupo-tl-overlap-zone-label";
+                        zone.appendChild(label);
+                    }
+                    const handle = make("button");
+                    handle.type = "button";
+                    handle.className = "ghupo-tl-overlap-handle";
+                    handle.dataset.overlapIndex = String(info.index);
+                    handle.title = `拖动调整第 ${info.index} 段前的重叠帧数`;
+                    zone.appendChild(handle);
+                    tlTrack.appendChild(zone);
+                }
+            }
+
             // 4. 更新标题栏
             const boardLabel = currentSubView === "refmod" ? "参考模型" : "参考素材";
             storyboardMeta.textContent = `${boardLabel} · ${total.toFixed(1)}s · ${segments.length} 段 · ${Math.round(zoom)}px/s`;
@@ -2504,61 +2653,32 @@ function createPanel(node) {
         persist();
     }
     function updateSegLayout() {
-        const totalDur = getTotalDuration();
-        const zoom = getEffectiveZoom();
-        tlInner.style.width = (totalDur * zoom) + "px";
-        let cursor = 0;
-        const segEls = tlTrack.querySelectorAll(".ghupo-tl-seg");
-        for (let i = 0; i < segments.length; i++) {
-            const dur = Number(segments[i].duration) || 0;
-            const el = segEls[i];
-            if (el) {
-                el.style.left = (cursor * zoom) + "px";
-                el.style.width = (dur * zoom) + "px";
-                const timeEl = el.querySelector(".ghupo-tl-seg-time");
-                if (timeEl) timeEl.textContent = `${cursor.toFixed(1)}-${(cursor + dur).toFixed(1)}s`;
-            }
-            cursor += dur;
-        }
-        // 刷新刻度尺
-        tlRuler.replaceChildren();
-        const tickStep = chooseTickStep(zoom);
-        const subStep = chooseSubTickStep(tickStep, zoom);
-        if (subStep) {
-            const subCount = Math.ceil(totalDur / subStep) + 1;
-            for (let i = 0; i < subCount; i++) {
-                const t = i * subStep;
-                if (t > totalDur + 1e-6) break;
-                if (Math.abs(t / tickStep - Math.round(t / tickStep)) < 1e-6) continue;
-                const sub = make("div"); sub.className = "ghupo-tl-tick sub";
-                sub.style.left = (t * zoom) + "px";
-                tlRuler.appendChild(sub);
-            }
-        }
-        const tickCount = Math.ceil(totalDur / tickStep) + 1;
-        for (let i = 0; i < tickCount; i++) {
-            const t = i * tickStep;
-            if (t > totalDur + 1e-6) break;
-            const tick = make("div"); tick.className = "ghupo-tl-tick";
-            tick.style.left = (t * zoom) + "px";
-            tick.textContent = fmtTick(t);
-            tlRuler.appendChild(tick);
-        }
-        const tail = make("div"); tail.className = "ghupo-tl-tick";
-        tail.style.left = (totalDur * zoom) + "px";
-        tail.style.transform = "translateX(-100%)";
-        tail.style.borderLeft = "none";
-        tail.style.textAlign = "right";
-        tail.style.paddingLeft = "0";
-        tail.style.paddingRight = "3px";
-        tail.textContent = totalDur.toFixed(1) + "s";
-        tlRuler.appendChild(tail);
-        const boardLabel = currentSubView === "refmod" ? "参考模型" : "参考素材";
-        storyboardMeta.textContent = `${boardLabel} · ${totalDur.toFixed(1)}s · ${segments.length} 段 · ${Math.round(zoom)}px/s`;
+        renderStoryboard();
     }
 
     // ---- tlTrack 事件委托：pointerdown / move / up ----
     tlTrack.addEventListener("pointerdown", (e) => {
+        if (overlapEditMode) {
+            const handle = e.target.closest(".ghupo-tl-overlap-handle");
+            if (!handle || e.button !== 0) return;
+            const overlapIndex = Number(handle.dataset.overlapIndex);
+            if (!Number.isInteger(overlapIndex) || overlapIndex <= 0 || overlapIndex >= segments.length) return;
+            e.stopPropagation();
+            e.preventDefault();
+            if (timelineZoom === null) timelineZoom = getEffectiveZoom();
+            const overlaps = readStoryboardOverlaps();
+            segDragState = {
+                mode: "overlap",
+                overlapIndex,
+                initialOverlap: overlaps[overlapIndex] || 0,
+                initialOverlaps: overlaps,
+                startX: e.clientX,
+                pointerId: e.pointerId,
+                moved: false,
+            };
+            try { tlTrack.setPointerCapture(e.pointerId); } catch {}
+            return;
+        }
         const segEl = e.target.closest(".ghupo-tl-seg");
         if (!segEl) return;
         if (e.target.closest(".ghupo-tl-seg-del")) return;
@@ -2588,6 +2708,7 @@ function createPanel(node) {
     tlTrack.addEventListener("pointermove", (e) => {
         // 光标跟随（未拖动时）
         if (!segDragState) {
+            if (overlapEditMode) return;
             const segEl = e.target.closest?.(".ghupo-tl-seg");
             if (segEl && !e.target.closest(".ghupo-tl-seg-del")) {
                 const r = segEl.getBoundingClientRect();
@@ -2602,7 +2723,7 @@ function createPanel(node) {
         const dx = e.clientX - d.startX;
         if (!d.moved && Math.abs(dx) > 4) {
             d.moved = true;
-            d.segEl.classList.add("dragging");
+            d.segEl?.classList.add("dragging");
             if (d.mode === "move") ensureGhostDrag();
         }
         if (!d.moved) return;
@@ -2618,6 +2739,18 @@ function createPanel(node) {
             }
         } else if (d.mode === "move") {
             moveGhostDrag(e.clientX, e.clientY, d.segIndex);
+        } else if (d.mode === "overlap") {
+            const zoom = getEffectiveZoom();
+            const index = d.overlapIndex;
+            const frameDelta = Math.round((-dx / zoom) * STORYBOARD_FPS);
+            const maxFrames = Math.min(
+                alignedSegmentFrames(Number(segments[index - 1]?.duration) || 5),
+                alignedSegmentFrames(Number(segments[index]?.duration) || 5),
+            );
+            const overlaps = d.initialOverlaps.slice();
+            overlaps[index] = Math.max(0, Math.min(maxFrames, d.initialOverlap + frameDelta));
+            writeStoryboardOverlaps(overlaps);
+            renderStoryboard();
         }
     });
 
@@ -2625,10 +2758,10 @@ function createPanel(node) {
         const d = segDragState;
         if (!d || d.pointerId !== e.pointerId) return;
         segDragState = null;
-        d.segEl.classList.remove("dragging");
+        d.segEl?.classList.remove("dragging");
         try { tlTrack.releasePointerCapture(e.pointerId); } catch {}
         if (!d.moved) {
-            switchSegment(d.segIndex);
+            if (d.mode !== "overlap") switchSegment(d.segIndex);
             return;
         }
         if (d.mode === "resize") {
@@ -2638,6 +2771,9 @@ function createPanel(node) {
             const target = computeDropIndex(e.clientX);
             clearGhostDrag();
             if (target !== null && target !== d.segIndex) commitReorder(d.segIndex, target);
+        } else if (d.mode === "overlap") {
+            renderStoryboard();
+            persist();
         }
     });
 
@@ -2645,8 +2781,9 @@ function createPanel(node) {
         const d = segDragState;
         if (!d || d.pointerId !== e.pointerId) return;
         segDragState = null;
-        d.segEl.classList.remove("dragging");
+        d.segEl?.classList.remove("dragging");
         clearGhostDrag();
+        if (d.mode === "overlap") writeStoryboardOverlaps(d.initialOverlaps);
         renderStoryboard();
     });
 
@@ -3279,6 +3416,24 @@ function createPanel(node) {
     // 上一次优化的缓存：只要上下文与原文都没变，再次点 ✦ 就直接复用结果，
     // 不再重复调用后端，从而支持"原文 ↔ 优化稿"快速来回对比。
     let optimizerCache = null; // 当前模式的活动缓存（= modeState[currentSlot()].cache）
+
+    function cancelOptimizerRequest(requestId = optimizerRequestId) {
+        if (!requestId) return;
+        api.fetchApi(`${OPTIMIZER_ROUTE}/cancel`, {
+            method: "POST",
+            body: new Blob([JSON.stringify({ request_id: requestId })], { type: "application/json" }),
+        }).then(async response => {
+            if (!response.ok) {
+                console.warn(`[UPO] 优化任务取消请求失败: HTTP ${response.status}`);
+            }
+        }).catch(error => console.warn("[UPO] 优化任务取消请求失败", error));
+    }
+
+    const abortOptimizerRequest = () => {
+        const requestId = optimizerRequestId;
+        optimizerAbort?.abort();
+        cancelOptimizerRequest(requestId);
+    };
     let promptState = "original"; // "original" | "optimized"
     // 【双模式·三槽】video / image / refmod 各自独立保存大白话原文与优化缓存
     const modeState = {
@@ -3380,7 +3535,7 @@ function createPanel(node) {
         if (viewMode !== "video") return;
         if (index === activeSegmentIndex) return;
         if (index < 0 || index >= segments.length) return;
-        if (optimizerAbort) { try { optimizerAbort.abort(); } catch {} }
+        abortOptimizerRequest();
         
         // 1. 回写当前段（包括把 media Map 存进当前段）
         const slot = currentSlot();
@@ -3570,6 +3725,45 @@ function createPanel(node) {
         let data; try { data = text ? JSON.parse(text) : {}; } catch { throw new Error(`HTTP ${r.status}`); }
         if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
         return data;
+    }
+
+    async function runOptimizationTask(body, signal) {
+        const requestOptions = {
+            method: "POST",
+            signal,
+            body: new Blob([JSON.stringify(body)], { type: "application/json" }),
+        };
+        const startResponse = await api.fetchApi(`${OPTIMIZER_ROUTE}/start`, requestOptions);
+        const startText = await startResponse.text();
+        let startData;
+        try { startData = startText ? JSON.parse(startText) : {}; }
+        catch { throw new Error(`优化任务启动接口返回了无效数据 (HTTP ${startResponse.status})`); }
+        if (!startResponse.ok) throw new Error(startData.error || `HTTP ${startResponse.status}`);
+        if (startData.request_id !== body.request_id || startData.status !== "running") {
+            throw new Error("优化任务启动接口返回了无效任务状态");
+        }
+
+        while (true) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const statusResponse = await api.fetchApi(
+                `${OPTIMIZER_ROUTE}/status?request_id=${encodeURIComponent(body.request_id)}`,
+                { signal, cache: "no-store" },
+            );
+            const statusText = await statusResponse.text();
+            let statusData;
+            try { statusData = statusText ? JSON.parse(statusText) : {}; }
+            catch { throw new Error(`优化任务状态接口返回了无效数据 (HTTP ${statusResponse.status})`); }
+            if (!statusResponse.ok) throw new Error(statusData.error || `HTTP ${statusResponse.status}`);
+            if (statusData.status === "success") {
+                if (typeof statusData.prompt !== "string" || !statusData.prompt.trim()) {
+                    throw new Error("优化任务已完成，但没有返回有效提示词");
+                }
+                return statusData;
+            }
+            if (statusData.status !== "running") {
+                throw new Error(`优化任务返回了未知状态: ${String(statusData.status || "empty")}`);
+            }
+        }
     }
 
     async function loadSettings() {
@@ -4005,13 +4199,7 @@ function createPanel(node) {
                 context: { main_mode: hasReferences ? "all_reference" : "text_keyframes" },
                 config: { ...settings, template: effectiveTemplate() },
             };
-            const r = await api.fetchApi(`${OPTIMIZER_ROUTE}/optimize`, {
-                method: "POST", signal: optimizerAbort.signal,
-                body: new Blob([JSON.stringify(body)], { type: "application/json" }),
-            });
-            const text = await r.text();
-            let data; try { data = JSON.parse(text); } catch { throw new Error("优化接口返回了无效数据"); }
-            if (!r.ok) throw new Error(data.error || "Prompt optimization failed");
+            const data = await runOptimizationTask(body, optimizerAbort.signal);
             optimizerBefore = before;
             optimizerCache = { signature, originalPrompt: before, result: data.prompt };
             modeState[currentSlot()].cache = optimizerCache;
@@ -4110,10 +4298,10 @@ function createPanel(node) {
         if (autoOptimizeRunning) {
             // 【L2-d】自动优化流程中点击 → 取消整个流程
             autoOptimizeCancelled = true;
-            optimizerAbort?.abort();
+            abortOptimizerRequest();
             return;
         }
-        if (optimizing) { optimizerAbort?.abort(); return; }
+        if (optimizing) { abortOptimizerRequest(); return; }
         // 【源头拦截】空输入绝不允许跑到任何缓存或优化逻辑里
         if (!editorText().trim()) {
             alert(t("提示词不能为空，请先输入内容再点击优化"));
@@ -4701,6 +4889,8 @@ function createPanel(node) {
                 if (restored.dirSecondPassSteps) spStepsInput.value = restored.dirSecondPassSteps;
                 if (restored.dirSecondPassMode) spModeSelect.value = restored.dirSecondPassMode;
                 if (restored.dirAudioMode) audioSelect.value = restored.dirAudioMode;
+                if (restored.dirAdvancedOpen !== undefined) dirAdvancedPanel.open = !!restored.dirAdvancedOpen;
+                if (restored.dirOverlapEditMode !== undefined) setOverlapEditMode(!!restored.dirOverlapEditMode, false);
                 if (restored.dirBridgeOverlaps !== undefined) overlapInput.value = restored.dirBridgeOverlaps;
                 updateSplitRunControls();
                 if (Number.isFinite(restored.height)) {
@@ -4762,7 +4952,7 @@ function createPanel(node) {
 
     const oldRemoved = node.onRemoved;
     node.onRemoved = function(...a) {
-        optimizerAbort?.abort();
+        abortOptimizerRequest();
         clearInterval(optimizerTimer);
         window.removeEventListener("paste", accept, true);
         window.removeEventListener("wheel", capturePromptWheel, true);

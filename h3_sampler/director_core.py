@@ -1464,7 +1464,6 @@ def _execute_h3_independent_first(
         while frame_total % 17 != 5:
             frame_total -= 1
         frames = frames[:frame_total]
-        video_latent = vae.encode(frames)
         audio_latent, ref_audio_t = (None, 0)
         if soundtrack is not None:
             audio_latent, ref_audio_t = h3_nodes._encode_ref_audio(audio_vae, soundtrack)
@@ -1475,6 +1474,9 @@ def _execute_h3_independent_first(
             "type": "video", "data": qwen_frames,
             "timestamps": [index / 2.0 for index in range(len(sample_indices))],
         })
+        if vae is None:
+            continue
+        video_latent = vae.encode(frames)
         ref_blocks.append({
             "kind": "video_audio" if ref_audio_t else "video",
             "latent_t": video_latent.shape[2], "latent_h": canvas_height // 16,
@@ -1495,26 +1497,32 @@ def _motion_reference_prompt(prompt: str, image_count: int, video_count: int) ->
     if video_count < 1:
         return prompt
 
+    prompt = re.sub(
+        r"(?:图片|图像|图)\s*(\d+)",
+        lambda match: f"<Picture {match.group(1)}>",
+        prompt,
+    )
+    prompt = re.sub(
+        r"(?:参考视频|视频)\s*(\d+)",
+        lambda match: f"<Video {match.group(1)}>",
+        prompt,
+    )
     video_tags = ", ".join(f"<Video {index}>" for index in range(1, video_count + 1))
     if image_count:
         image_tags = ", ".join(f"<Picture {index}>" for index in range(1, image_count + 1))
         source_roles = (
-            f"Use {image_tags} as the authoritative source for subject identity, faces, "
-            "clothing, appearance, and scene."
+            f"Use {image_tags} only according to the roles assigned to them in the prompt. "
+            f"Transfer the actions and camera motion from {video_tags} to the character(s) "
+            "identified there, preserving each character's picture appearance. If a picture "
+            "is assigned as the scene, use that environment instead of the source video's setting."
         )
     else:
         source_roles = (
-            "Use the written prompt as the authoritative source for subjects, appearance, "
-            "and scene; do not infer them from the video."
+            f"Re-enact the actions and camera motion from {video_tags} in a new video. "
+            "Use the written prompt for the subjects, appearance, scene, and creative details."
         )
 
-    action_roles = (
-        f"Reference-role instructions: use {video_tags} only for movement, gestures, "
-        "action timing, and camera motion. Do not reproduce or continue its frames, "
-        "people, faces, clothing, objects, setting, colors, or composition. "
-        f"{source_roles} Generate a new video that follows the written prompt, "
-        "not a copy of the reference video."
-    )
+    action_roles = f"Create one coherent new video using {video_tags} only for motion. {source_roles}"
     return f"{prompt.rstrip()}\n\n{action_roles}" if prompt.strip() else action_roles
 
 
@@ -1560,8 +1568,8 @@ def _encode_timeline_plan(
     encoder_prompt = _motion_reference_prompt(prompt, len(ref_images), len(ref_videos))
     if ref_videos:
         log.info(
-            "Action-reference policy: %d video(s) provide motion only; %d image(s) "
-            "or the written prompt define appearance and scene.",
+            "Action-reference conditioning: %d video(s) provide Qwen and full video-latent "
+            "references; %d image(s) provide visual references.",
             len(ref_videos),
             len(ref_images),
         )

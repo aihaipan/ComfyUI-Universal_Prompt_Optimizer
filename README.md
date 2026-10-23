@@ -1,4 +1,4 @@
-# ComfyUI Universal Prompt Optimizer
+# ComfyUI Universal MiniMax H3 Ecosystem
 
 [English](#english) | [中文](#中文)
 
@@ -6,32 +6,59 @@
 
 ## English
 
-A universal prompt optimizer node for ComfyUI. Turn rough natural-language ideas into production-ready prompts for any model — video (MiniMax H3, LTX, Wan, Kling, Veo, Sora) or image (Flux, Z-Image, Qwen-Image).
+The ultimate, all-in-one ecosystem for MiniMax H3 video generation. Turn rough ideas into production-ready videos with just **3 nodes**, keeping your canvas clean and your workflow lightning fast.
 
-### Features
+### 🌟 Director Max Core Features
 
-- Rich-text prompt editor with `@图N` / `@video N` / `@audio N` references
-- Media upload with per-item **weight** (0.1–2.0) for attention control
-- Dual mode: **video** and **image** prompts, each with isolated cache and history
-- History menu with up to 3 cached optimization results per mode
-- Optimize once, compare original ↔ optimized with one-click toggle
-- Free duration control (0–30s) with fast-cut / slow-motion adaptive pacing
-- Optional **R2V Bridge** node for MiniMax H3 Director (`r2v_groups` input)
-- Multi-language output (Chinese / English)
+1. **Auto-Prompt Engine**: Built-in LLM optimizer (Local GGUF / Online API). Converts plain language (e.g., "Image 1 and 2 fight in Image 3's scene") into H3's standard 6-section prompt, automatically adapting action beats based on your target duration.
+2. **Infinite Length & Smart Storyboard**: Seamless multi-segment video generation. Adjust "overlap frames" for silky-smooth transitions or use hard cuts. Generate videos of any length (limited only by your VRAM).
+3. **Audio Driving**: Supports reference audio for voice cloning. Lock audio tracks as BGM or force specific dialogue (single track).
+4. **Dual 2-Stage Upscaling**:
+   - **Selflift (Speed)**: Fully automated 1st + 2nd stage. Benchmark (5070Ti, 0.4mp, 8 steps): **Only 79.9 seconds!**
+   - **Refine (Quality)**: High-definition automated pipeline.
+   - **Manual Mode**: Generate a draft first, pick the best one, then manually trigger the 2nd stage.
+5. **Video Reference**: Use a reference video to guide the motion and action of your generated video.
+6. **RefMod Character Consistency**: Pre-injects latent features for incredible biological character consistency. Keep faces identical even during turns, occlusions, and re-appearances.
 
-### Screenshots
+### 🧩 The 3-Node Workflow Architecture
 
-![Unlimited Multi-Segment Workflow](docs/screenshots/01-unlimited-segments.png)
-![Director Workflow](docs/screenshots/02-director-workflow.png)
-![Image Generation Workflow](docs/screenshots/03-image-workflow.png)
+Forget messy spaghetti graphs. The ecosystem includes a dynamic **Universal Model Loader** (loading Models, LoRA, CLIP, VAE, audio VAE in one node).
 
-### Example Workflows
+**Loader** → **Director Max** → **Save Video**
 
-Ready-to-load workflows in the `workflows/` directory:
+### 📦 Backward Compatibility & Bridges
 
-- [`workflows/01-director-full-r2v导演台外接.json`](workflows/01-director-full-r2v导演台外接.json) — Full MiniMax H3 pipeline with the AIMixer Director integration
-- [`workflows/02-image-demo-生图.json`](workflows/02-image-demo-生图.json) — Image prompt optimization demo
-- [`workflows/03-unlimited-two-stage-小黄瓜多段.json`](workflows/03-unlimited-two-stage-小黄瓜多段.json) — Unlimited-length fast generation with two-stage sampling via TimelineDirector
+- **Prompt Optimizer Node**: Still fully supported for image generation (Flux, Z-Image, etc.) and video prompts.
+- **AIMixer R2V Bridge**: Connect the optimizer to AIMixer's Director for single-segment generation.
+- **TimelineDirector Bridge**: Connect for multi-segment and two-stage sampling via Songssx's TimelineDirector.
+
+### 📸 Screenshots
+
+**Director Max Core UI & Node Workflow**
+![Director Max UI](docs/screenshots/Universal%20MiniMax_H3导演台Max_UI.png)
+![Director Max Workflow](docs/screenshots/Universal%20MiniMax_H3导演台Max工作流.png)
+
+**Auto-Prompt Engine (Before / Processing / After)**
+![Before Optimization](docs/screenshots/优化前.png)
+![Optimization Processing](docs/screenshots/优化中.png)
+![After Optimization](docs/screenshots/优化后.png)
+![Auto Optimization Settings](docs/screenshots/自动优化设置.png)
+
+**Smart Storyboard & Segment Overlap**
+![Segment Overlap Settings](docs/screenshots/段间重叠设置.png)
+
+**Universal Model Loader & RefMod Support**
+![Dynamic Model Loader](docs/screenshots/动态模型加载器.png)
+![RefMod](docs/screenshots/Refmod.png)
+
+### 🗂️ Example Workflows
+
+Load these files directly into ComfyUI:
+
+- **[`workflows/00-MiniMax_H3全能导演台Max.json`](workflows/00-MiniMax_H3全能导演台Max.json)** — **The Ultimate Default Workflow for Director Max (Start Here!)**
+- [`workflows/01-director-full-r2v导演台外接.json`](workflows/01-director-full-r2v导演台外接.json) — Legacy pipeline with AIMixer Director integration.
+- [`workflows/02-image-demo-生图.json`](workflows/02-image-demo-生图.json) — Image prompt optimization demo.
+- [`workflows/03-unlimited-two-stage-小黄瓜多段.json`](workflows/03-unlimited-two-stage-小黄瓜多段.json) — Legacy unlimited-length workflow via TimelineDirector.
 
 ### Installation
 
@@ -39,221 +66,110 @@ Ready-to-load workflows in the `workflows/` directory:
 cd ComfyUI/custom_nodes
 git clone https://github.com/aihaipan/ComfyUI-Universal_Prompt_Optimizer.git
 ```
+
 Restart ComfyUI.
 
-Quick Start
-Add Universal Prompt Optimizer node.
+Configuration
+Open the ⚙ settings panel to configure your LLM backend (Local GGUF or Online API) and output language.
 
-Upload reference images / videos / audio.
+Credits
+Core prompt optimization pipeline and frontend editor framework derived from goohai's Goohai-MiniMax-H3_Integration. Licensed under GPL-3.0.
 
-Write your idea in plain language, referencing media with @图1, @图2 etc.
+Special thanks to:
 
-Click ✦ to optimize.
+AIMixer/ComfyUI_MiniMaxH3_Director for the R2V bridge foundation.
 
-Connect the prompt output to any text encoder (CLIP, T5, etc.).
+Songssx/ComfyUI-MiniMaxH3-TimelineDirector for the Finite Segment bridge.
 
-Optional: MiniMax H3 Director Integration
-If you use AIMixer/ComfyUI_MiniMaxH3_Director:
+Luisacaotica for the ComfyUI-MiniMaxH3Mod plugin powering RefMod support.
 
-Add the MiniMax H3 R2V Bridge (GH) node.
-
-Connect media_bundle and prompt from the optimizer to the bridge.
-
-Connect the bridge's r2v_group output to the Director's r2v_groups/i2v_groups input.
-
-Set the Director's task type to r2v.
-
-### Optional: TimelineDirector Integration (Recommended for Speed)
-
-This plugin also supports [Songssx/ComfyUI-MiniMaxH3-TimelineDirector](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector)'s **MiniMax H3 Finite Segment Sampling** node. We ship a dedicated **MiniMax H3 Finite Segment Bridge** node designed specifically for its `finite_plan` input.
-
-Key benefits:
-
-- **Significantly faster generation** than generic samplers (the Finite Segment Sampling node internally performs direct-latent continuation, adaptive masking, and native AV path handling)
-- **Unlimited-length video** via segment-based generation with one shared seed
-- **SelfLift two-stage sampling** (fast 75% low-res + 25% high-res) for quality and speed
-- **Drag-adjustable segment-level guidance overlap** for smooth transitions
-- **Free toggle for two-stage sampling** on a per-run basis
-
-**Workflow:**
-
-1. Add the **MiniMax H3 Finite Segment Bridge** node.
-2. Connect `media_bundle`, `prompt`, and (optionally) `segments_json` from the optimizer to the bridge.
-3. Set `duration_sec`, `width`, `height`, and `audio_mode` on the bridge as needed.
-4. Connect the bridge's `finite_plan` output to TimelineDirector's **MiniMax H3 Finite Segment Sampling** node's `finite_plan` input.
-5. Run.
-
-> 💡 Tip: The Finite Segment Sampling node is substantially faster than the classic Director sampler for the same model, resolution, and duration. We recommend it as the default generation backend for MiniMax H3.
-
-### Configuration
-Open the ⚙ settings panel and choose:
-
-Optimization mode: Online API (OpenAI / Gemini / OpenRouter / DashScope / SiliconFlow / RunningHub) or Local vision model (GGUF / Transformers)
-
-Output language: Chinese / English
-
-Prompt format template: video templates + image prompt
-
-### RefMod Support (Character Consistency Boost)
-
-Our optimizer now supports **H3 RefMod** — a fast character-consistency workflow for MiniMax H3.
-In the universal node video generation mode, you can find the reference model video generation, which is specially prepared for H3 RefMod.
-
-**What is RefMod?**
-RefMod creates a latent-space character mod that captures a character's identity from reference images. Each mod behaves like a lightweight, per-character LoRA — but takes **under 1 minute to produce**, compared to hours of LoRA training.
-
-**How it works with this plugin:**
-1. Build a character mod with RefMod.
-2. Load it in the Universal Prompt Optimizer.
-3. Connect the optimizer's output to **H3 RefMod Text Encode** (by the RefMod author).
-4. The optimizer passes both the **optimized prompt** and the **mod payload** downstream.
-
-**Result:** Significantly stronger character identity retention across generated videos, with no manual copying.
-
-> 📌 The RefMod author is actively adding more mod types (e.g., reference audio mods). This plugin will follow up with matching support.
-
-### Credits
-
-This plugin's core prompt optimization pipeline (`prompt_optimizer.py`) and the base framework of the frontend rich-text editor (`web/universal_prompt_optimizer.js`) are derived from **[goohai](https://github.com/goohai)**'s open-source project **[Goohai-MiniMax-H3_Integration](https://github.com/goohai/Goohai-MiniMax-H3_Integration)**. Sincere thanks to the original author.
-
-The original project is licensed under **GPL-3.0-or-later**; this plugin strictly follows the same license and preserves all original copyright notices.
-
-Special thanks to [AIMixer/ComfyUI_MiniMaxH3_Director](https://github.com/AIMixer/ComfyUI_MiniMaxH3_Director) for providing the official MiniMax H3 Director foundation. The R2V bridge node in this plugin is designed specifically for its `r2v_groups` input.
-
-RefMod Support requires the community plugin [ComfyUI-MiniMaxH3Mod] (https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod) by Luisacaotica. Please install it first.
-Special thanks to [Luisacaotica] (https://github.com/Luisacaotica) for the ComfyUI-MiniMaxH3Mod plugin, which powers our RefMod character consistency feature.
-
-### License
-
+License
 GPL-3.0-or-later
 
-### 中文
-一个通用的 ComfyUI 提示词优化节点。把大白话想法变成任何模型都能用的专业提示词 —— 视频（MiniMax H3、LTX、Wan、可灵、Veo、Sora）或图片（Flux、Z-Image、Qwen-Image）。
 
-功能特性
-富文本提示词编辑器，支持 @图N / @video N / @audio N 引用
+中文
+终极的 MiniMax H3 视频生成全能生态。仅需 3 个节点，即可将大白话想法转化为高质量视频，告别凌乱的画布，体验极致的生成速度。
 
-素材上传，每张可设权重（0.1–2.0）控制注意力
+🌟 导演台 Max 核心功能
+全自动提示词引擎：内置本地 GGUF / 在线 API 优化器。一键将大白话转为 H3 标准 6 段式提示词，并根据设定时长自动增删打斗动作与分镜。
 
-双模式：视频与图片提示词，各自的缓存与历史完全隔离
+无限时长与智能故事板：集成多段故事板衔接。支持调整“重叠帧”实现段与段之间的丝滑过渡，或选择硬切。突破单次生成时长限制。
 
-历史菜单，每个模式最多保留 3 条优化缓存
+音频驱动与音轨锁定：支持参考音频生成对白，支持锁定音轨作为 BGM 或强制对白（单轨锁定）。
 
-一键对比大白话 ↔ 优化稿
+双二采放大模式：
 
-时长自由控制（0–30 秒），自动识别快剪 / 慢镜节奏
+Selflift (极速)：全自动一采+二采。实测数据（5070Ti，0.4mp，8步）：仅需 79.9 秒！
 
-可选MiniMax H3 R2V 桥接器节点，配合 MiniMax H3 Director（r2v_groups/i2v_groups 输入）
+Refine (高清)：全自动一采+二采，追求极致画质。
 
-可选MiniMax H3 Finite Segment 桥接器，配合 MiniMax H3 有限分段采样节点，实现快速生成视频👍为此我们还专门升级了 万能模型提示词优化节点，升级了对多段的适配，同时MiniMax H3 Finite Segment 桥接器可以自由调整段级引导重叠部分，以及自由的开关二采
+手动模式：支持“手动一采+手动二采”，先抽卡，满意后再放大，极致节省时间。
 
-中英双语输出
+视频动作参考：支持让素材参考视频动作，生成动作一致的视频。
 
-### 界面截图
+RefMod 角色一致性：兼容以上所有功能。通过提前注入 latent，让模型更清晰生动，特别针对生物模型，保证脸部在转身、遮挡重新出现等场景下高度一致。
 
-![不限时长多段工作流](docs/screenshots/01-unlimited-segments.png)
-![导演台工作流](docs/screenshots/02-director-workflow.png)
-![生图工作流](docs/screenshots/03-image-workflow.png)
+🧩 极致精简的 3 节点生态
+包含一个强大的 Universal 模型动态加载器（单节点即可加载主模型、LoRA、CLIP、VAE、VAE_Audio 等）。告别凌乱连线。
 
-### 示例工作流
+模型动态加载器 → 导演台 Max → 保存视频
 
-`workflows/` 目录下提供了开箱即用的示例：
+📦 兼容与桥接
+万能提示词优化节点：依然保留，支持生图（Flux/Z-Image等）及单段提示词优化。
 
-- [`workflows/01-director-full-r2v导演台外接.json`](workflows/01-director-full-r2v导演台外接.json) — 完整 MiniMax H3 管线，含 AIMixer 导演台整合
-- [`workflows/02-image-demo-生图.json`](workflows/02-image-demo-生图.json) — 生图提示词优化演示
-- [`workflows/03-unlimited-two-stage-小黄瓜多段.json`](workflows/03-unlimited-two-stage-小黄瓜多段.json) — 通过 TimelineDirector 实现的无限时长快速生成 + 二采
+AIMixer R2V 桥接：连接至 AIMixer 导演台（单段）。
 
-### 安装
+TimelineDirector 桥接：连接至小黄瓜采样器（多段 + 二采）。
+
+📸 界面截图
+导演台 Max 核心 UI 与节点工作流
+https://docs/screenshots/Universal%20MiniMax_H3%E5%AF%BC%E6%BC%94%E5%8F%B0Max_UI.png
+https://docs/screenshots/Universal%20MiniMax_H3%E5%AF%BC%E6%BC%94%E5%8F%B0Max%E5%B7%A5%E4%BD%9C%E6%B5%81.png
+
+全自动提示词引擎（优化前 / 优化中 / 优化后 / 自动优化设置）
+https://docs/screenshots/%E4%BC%98%E5%8C%96%E5%89%8D.png
+https://docs/screenshots/%E4%BC%98%E5%8C%96%E4%B8%AD.png
+https://docs/screenshots/%E4%BC%98%E5%8C%96%E5%90%8E.png
+https://docs/screenshots/%E8%87%AA%E5%8A%A8%E4%BC%98%E5%8C%96%E8%AE%BE%E7%BD%AE.png
+
+智能故事板与段间重叠
+https://docs/screenshots/%E6%AE%B5%E9%97%B4%E9%87%8D%E5%8F%A0%E8%AE%BE%E7%BD%AE.png
+
+动态模型加载器与 RefMod 支持
+https://docs/screenshots/%E5%8A%A8%E6%80%81%E6%A8%A1%E5%9E%8B%E5%8A%A0%E8%BD%BD%E5%99%A8.png
+https://docs/screenshots/Refmod.png
+
+🗂️ 示例工作流
+直接在 ComfyUI 中拖入这些 JSON 文件即可加载：
+
+workflows/00-MiniMax_H3全能导演台Max.json — 导演台 Max 终极默认工作流（强烈推荐从这里开始！）
+
+workflows/01-director-full-r2v导演台外接.json — 旧版：含 AIMixer 导演台整合。
+
+workflows/02-image-demo-生图.json — 生图提示词优化演示。
+
+workflows/03-unlimited-two-stage-小黄瓜多段.json — 旧版：通过 TimelineDirector 实现的无限时长生成。
+
+安装
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/aihaipan/ComfyUI-Universal_Prompt_Optimizer.git
+重启 ComfyUI。
 ```
 
-重启 ComfyUI。
+配置
+打开 ⚙ 设置面板配置优化方式（本地 GGUF 或在线 API）及输出语言。
 
-### 快速开始
-添加 万能提示词优化 节点。
+致谢 / Credits
+本插件的核心提示词优化管线及前端编辑器框架源自 goohai 的开源项目 Goohai-MiniMax-H3_Integration。遵循 GPL-3.0 协议。
 
-上传参考图 / 视频 / 音频。
+同时特别感谢：
 
-用大白话写你的想法，用 @图1、@图2 引用素材。
+AIMixer/ComfyUI_MiniMaxH3_Director 提供的 R2V 桥接底子。
 
-点击 ✦ 优化。
+Songssx/ComfyUI-MiniMaxH3-TimelineDirector 提供的有限分段采样底子。
 
-把 prompt 输出接到任何文本编码器（CLIP、T5 等）。
+Luisacaotica 提供的 ComfyUI-MiniMaxH3Mod 插件与 RefMod 支持。
 
-可选：MiniMax H3 Director 整合
-如果你使用 AIMixer/ComfyUI_MiniMaxH3_Director：
-
-添加 MiniMax H3 R2V 桥接器 (GH) 节点。
-
-把优化器的 media_bundle 和 prompt 输出连到桥接器。
-
-把桥接器的 r2v_group 输出连到导演台的 r2v_groups 输入。
-
-把导演台的任务类型设为 r2v。
-
-### 可选：TimelineDirector 有限分段采样整合（推荐，速度大幅提升）
-
-本插件同时支持 [Songssx/ComfyUI-MiniMaxH3-TimelineDirector](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector) 的 **MiniMax H3 有限分段采样**节点。我们为此专门提供了 **MiniMax H3 Finite Segment 桥接器**节点，专为其 `finite_plan` 输入接口设计。
-
-核心优势：
-
-- **生成速度极快**：相比通用采样器有显著提升（有限分段采样节点内部直接处理 latent 延续、自适应遮罩与原生 AV 路径）
-- **无限长度视频**：基于分段生成，共享一个种子，突破单次生成时长限制
-- **SelfLift 两阶段采样**（75% 低分辨率快速生成 + 25% 高分辨率精修），兼顾速度与画质
-- **段级引导重叠可拖拽调整**，保证段间过渡平滑
-- **二采可自由开关**，按需取舍速度与画质
-
-**使用步骤：**
-
-1. 添加 **MiniMax H3 Finite Segment 桥接器** 节点。
-2. 将万能节点的 `media_bundle`、`prompt` 以及可选的 `segments_json` 连接到桥接器。
-3. 在桥接器上设置 `duration_sec`、`width`、`height`、`audio_mode` 等参数。
-4. 将桥接器的 `finite_plan` 输出连接到 TimelineDirector 的 **MiniMax H3 有限分段采样** 节点的 `finite_plan` 输入。
-5. 运行。
-
-> 💡 提示：在相同模型、分辨率和时长下，有限分段采样节点比经典导演台采样器快得多。我们推荐将其作为 MiniMax H3 的默认生成后端。
-
-### 配置
-打开 ⚙ 设置面板：
-
-优化方式：在线 API（OpenAI / Gemini / OpenRouter / 阿里云百炼 / SiliconFlow / RunningHub）或本地视觉模型（GGUF / Transformers）
-
-输出语言：中文 / English
-
-提示词格式模板：视频模板 + Image Prompt
-
-### RefMod 支持（角色一致性大幅提升）
-
-本插件现已支持 **H3 RefMod** —— 一种面向 MiniMax H3 的快速角色一致性方案。
-在万能节点生视频模式下可以找到参考模型生视频，就是专门为H3 RefMod准备的
-
-**什么是 RefMod？**
-RefMod 通过参考图制作一个潜空间中的角色 mod，把角色的身份特征"刻"进一个轻量文件里。每个 mod 相当于一个专属的角色 LoRA，但**制作时间不到 1 分钟**，远快于传统 LoRA 训练。
-
-**配合本插件怎么用：**
-1. 用 RefMod 制作角色 mod。
-2. 在万能提示词优化节点中加载 mod。
-3. 把万能节点的输出连接到作者提供的 **H3 RefMod Text Encode** 节点。
-4. 万能节点会自动把**优化后的提示词**和 **mod 素材**一并传递到下游。
-
-**效果：** 生成视频时，角色一致性大幅提升，且无需手动复制粘贴。
-
-> 📌 RefMod 作者正在持续更新更多 mod 类型（如参考音频 mod），本插件将同步跟进支持。
-
-### 致谢 / Credits
-
-本插件的核心提示词优化管线（`prompt_optimizer.py`）以及前端富文本编辑器的基础框架（`web/universal_prompt_optimizer.js`）源自 **[goohai](https://github.com/goohai)** 的开源项目 **[Goohai-MiniMax-H3_Integration](https://github.com/goohai/Goohai-MiniMax-H3_Integration)**，在此表示诚挚感谢。
-
-原项目采用 **GPL-3.0-or-later** 协议，本插件严格遵循同一协议发布，并保留了原项目的所有版权声明。
-
-同时感谢 [AIMixer/ComfyUI_MiniMaxH3_Director](https://github.com/AIMixer/ComfyUI_MiniMaxH3_Director) 提供的 MiniMax H3 官方导演台底子，本插件的 `MiniMax H3 R2V 桥接器`专为其 `r2v_groups` `i2v_groups`输入接口设计。
-
-本插件同时支持[ComfyUI-MiniMaxH3-TimelineDirector](https://github.com/Songssx/ComfyUI-MiniMaxH3-TimelineDirector)插件的`MiniMax H3 有限分段采样`节点，本插件的`MiniMax H3 Finite Segment 桥接器`节点专门为其`finite_plan`输入接口设计。顺便提一下，用`MiniMax H3 有限分段采样`采样器生成mimimax_H3视频提速极大，可自行测试！
-
-RefMod 支持 依赖社区插件 [ComfyUI-MiniMaxH3Mod] (https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod)（作者：[Luisacaotica](https://github.com/Luisacaotica)），请先安装该插件。
-
-
-### 许可证
+许可证
 GPL-3.0-or-later

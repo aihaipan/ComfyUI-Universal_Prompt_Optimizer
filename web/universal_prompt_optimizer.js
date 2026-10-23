@@ -2891,6 +2891,22 @@ function createPanel(node) {
     // 不再重复调用后端，从而支持"原文 ↔ 优化稿"快速来回对比。
     let optimizerCache = null; // 当前模式的活动缓存（= modeState[currentSlot()].cache）
     let promptState = "original"; // "original" | "optimized"
+
+    function cancelOptimizerRequest(requestId = optimizerRequestId) {
+        if (!requestId) return;
+        api.fetchApi(`${OPTIMIZER_ROUTE}/cancel`, {
+            method: "POST",
+            body: new Blob([JSON.stringify({ request_id: requestId })], { type: "application/json" }),
+        }).then(response => {
+            if (!response.ok) console.warn(`[UPO] 优化任务取消请求失败: HTTP ${response.status}`);
+        }).catch(error => console.warn("[UPO] 优化任务取消请求失败", error));
+    }
+
+    const abortOptimizerRequest = () => {
+        const requestId = optimizerRequestId;
+        optimizerAbort?.abort();
+        cancelOptimizerRequest(requestId);
+    };
     // 【双模式·三槽】video / image / refmod 各自独立保存大白话原文与优化缓存
     const modeState = {
         video: { original: "", cache: null, history: [] },
@@ -2976,7 +2992,7 @@ function createPanel(node) {
         if (index === activeSegmentIndex) return;
         if (index < 0 || index >= segments.length) return;
         // 【L2-c】切段时中止正在进行的优化，避免结果写到错误的段
-        if (optimizerAbort) { try { optimizerAbort.abort(); } catch {} }
+        abortOptimizerRequest();
         // 1. 回写当前段
         if (promptState === "original") modeState.video.original = editorText();
         modeState.video.cache = optimizerCache;
@@ -3154,6 +3170,44 @@ function createPanel(node) {
         let data; try { data = text ? JSON.parse(text) : {}; } catch { throw new Error(`HTTP ${r.status}`); }
         if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
         return data;
+    }
+
+    async function runOptimizationTask(body, signal) {
+        const startResponse = await api.fetchApi(`${OPTIMIZER_ROUTE}/start`, {
+            method: "POST",
+            signal,
+            body: new Blob([JSON.stringify(body)], { type: "application/json" }),
+        });
+        const startText = await startResponse.text();
+        let startData;
+        try { startData = startText ? JSON.parse(startText) : {}; }
+        catch { throw new Error(`优化任务启动接口返回了无效数据 (HTTP ${startResponse.status})`); }
+        if (!startResponse.ok) throw new Error(startData.error || `HTTP ${startResponse.status}`);
+        if (startData.request_id !== body.request_id || startData.status !== "running") {
+            throw new Error("优化任务启动接口返回了无效任务状态");
+        }
+
+        while (true) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const statusResponse = await api.fetchApi(
+                `${OPTIMIZER_ROUTE}/status?request_id=${encodeURIComponent(body.request_id)}`,
+                { signal, cache: "no-store" },
+            );
+            const statusText = await statusResponse.text();
+            let statusData;
+            try { statusData = statusText ? JSON.parse(statusText) : {}; }
+            catch { throw new Error(`优化任务状态接口返回了无效数据 (HTTP ${statusResponse.status})`); }
+            if (!statusResponse.ok) throw new Error(statusData.error || `HTTP ${statusResponse.status}`);
+            if (statusData.status === "success") {
+                if (typeof statusData.prompt !== "string" || !statusData.prompt.trim()) {
+                    throw new Error("优化任务已完成，但没有返回有效提示词");
+                }
+                return statusData;
+            }
+            if (statusData.status !== "running") {
+                throw new Error(`优化任务返回了未知状态: ${String(statusData.status || "empty")}`);
+            }
+        }
     }
 
     async function loadSettings() {
@@ -3589,13 +3643,7 @@ function createPanel(node) {
                 context: { main_mode: hasReferences ? "all_reference" : "text_keyframes" },
                 config: { ...settings, template: effectiveTemplate() },
             };
-            const r = await api.fetchApi(`${OPTIMIZER_ROUTE}/optimize`, {
-                method: "POST", signal: optimizerAbort.signal,
-                body: new Blob([JSON.stringify(body)], { type: "application/json" }),
-            });
-            const text = await r.text();
-            let data; try { data = JSON.parse(text); } catch { throw new Error("优化接口返回了无效数据"); }
-            if (!r.ok) throw new Error(data.error || "Prompt optimization failed");
+            const data = await runOptimizationTask(body, optimizerAbort.signal);
             optimizerBefore = before;
             optimizerCache = { signature, originalPrompt: before, result: data.prompt };
             modeState[currentSlot()].cache = optimizerCache;
@@ -3694,10 +3742,10 @@ function createPanel(node) {
         if (autoOptimizeRunning) {
             // 【L2-d】自动优化流程中点击 → 取消整个流程
             autoOptimizeCancelled = true;
-            optimizerAbort?.abort();
+            abortOptimizerRequest();
             return;
         }
-        if (optimizing) { optimizerAbort?.abort(); return; }
+        if (optimizing) { abortOptimizerRequest(); return; }
         // 【源头拦截】空输入绝不允许跑到任何缓存或优化逻辑里
         if (!editorText().trim()) {
             alert(t("提示词不能为空，请先输入内容再点击优化"));
@@ -4281,7 +4329,7 @@ function createPanel(node) {
 
     const oldRemoved = node.onRemoved;
     node.onRemoved = function(...a) {
-        optimizerAbort?.abort();
+        abortOptimizerRequest();
         clearInterval(optimizerTimer);
         window.removeEventListener("paste", accept, true);
         window.removeEventListener("wheel", capturePromptWheel, true);
