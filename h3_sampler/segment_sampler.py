@@ -1503,6 +1503,7 @@ class UniversalSegmentSampler(io.ComfyNode):
                         )
 
             # 3. 二采精修阶段
+            continuation_latent = sampled.out(0)
             if second_pass and second_pass_mode == "refine" and exec_mode != "pass1":
                 requested_refine_width = int(refine_width or width)
                 requested_refine_height = int(refine_height or height)
@@ -1584,7 +1585,13 @@ class UniversalSegmentSampler(io.ComfyNode):
                     audio1=previous_audio_for_join, audio2=current_audio, direction="after",
                 )
                 merged_images, merged_audio = current_images, audio_join.out(0)
-            previous_latent = sampled.out(0)
+            # Refine outputs use the enlarged spatial grid for decoding, but the
+            # next segment's first-pass overlap mask is built on the base grid.
+            previous_latent = (
+                continuation_latent
+                if second_pass and second_pass_mode == "refine" and exec_mode != "pass1"
+                else sampled.out(0)
+            )
             previous_images = images.out(0)
             last_sampled = sampled.out(0)
 
