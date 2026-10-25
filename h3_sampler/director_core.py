@@ -24,6 +24,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Iterable
@@ -1547,6 +1548,7 @@ async def _request_json(request: web.Request) -> dict[str, Any]:
 def _encode_timeline_plan(
     plan: dict[str, Any], clip, vae, audio_vae, prompt: str, ref_image_size: str
 ) -> tuple[Any, Any, dict[str, Any], dict[str, Any]]:
+    encode_started = time.perf_counter()
     plan = _require_timeline_plan(plan)
     timeline = plan["timeline"]
     target_width, target_height = int(plan["width"]), int(plan["height"])
@@ -1578,6 +1580,15 @@ def _encode_timeline_plan(
         ref_image_size, ref_images, ref_videos, ref_video_audios, ref_audios,
     )
     conditioning = _apply_h3_guides(conditioning, latent, vae, audio_vae, guides)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    log.info(
+        "【UniversalDirectorConsole Timing】Reference encoding: %dx%d, %d frame(s), %.3fs",
+        target_width,
+        target_height,
+        length,
+        time.perf_counter() - encode_started,
+    )
     return conditioning, latent, video_audio_output, standalone_audio_output
 
 

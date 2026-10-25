@@ -40,8 +40,8 @@ _PREVIOUS_LOW_CARRY_KEY = "selflift_previous_low_resolution_carry"
 
 
 class _StageTimer:
-    def __init__(self, stage, device, resolution=None, pixel_scale=1):
-        self.stage = stage
+    def __init__(self, stage, device, resolution=None, pixel_scale=1, timing_label=None):
+        self.stage = f"{timing_label} {stage}" if timing_label else stage
         self.resolution = resolution
         self.pixel_scale = pixel_scale
         self.device = torch.device(device)
@@ -52,7 +52,12 @@ class _StageTimer:
         if resolution is not None:
             pixels = tuple(int(value * self.pixel_scale) for value in resolution)
             suffix = f" latent={resolution} pixels={pixels}"
-        logging.debug("[TimelineDirector two-stage timing] %s start (%s)%s", stage, timing_mode, suffix)
+        logging.debug(
+            "【UniversalDirectorConsole Timing】%s start (%s)%s",
+            self.stage,
+            timing_mode,
+            suffix,
+        )
 
     def _now(self):
         if self.synchronize:
@@ -61,13 +66,21 @@ class _StageTimer:
 
     def mark(self, label):
         current = self._now()
-        logging.debug("[TimelineDirector two-stage timing] %s %s: %.3fs", self.stage, label, current - self.previous)
+        logging.debug(
+            "【UniversalDirectorConsole Timing】%s %s: %.3fs",
+            self.stage,
+            label,
+            current - self.previous,
+        )
         self.previous = current
 
     def finish(self):
         current = self._now()
-        logging.debug("[TimelineDirector two-stage timing] %s total: %.3fs; after last mark: %.3fs",
-                     self.stage, current - self.started, current - self.previous)
+        logging.info(
+            "【UniversalDirectorConsole Timing】%s total: %.3fs",
+            self.stage,
+            current - self.started,
+        )
 
 
 def _upscaler_input():
@@ -351,7 +364,8 @@ def _debug_dump(vae, latents):
 
 def progressive_sample(model, positive, negative, vae, latent_image, sampler, sigmas, seed, cfg,
                        transition_step, lowres_scale, rho, w_min, w_max, latent_upsample, latent_lifter=None,
-                       highres_tiling=False, model_hires=None):
+                       highres_tiling=False, model_hires=None, timing_label=None,
+                       tile_overlap_patches=None):
     _validate_schedule(sigmas, transition_step)
     if sigmas.numel() < 2:
         return latent_image
@@ -362,8 +376,6 @@ def progressive_sample(model, positive, negative, vae, latent_image, sampler, si
     if not 0.0 <= w_min <= w_max <= 1.0:
         raise ValueError("SelfLift: weights must satisfy 0 <= w_min <= w_max <= 1")
     noise_masks = _validate_latent_input(latent_image)
-    if highres_tiling and noise_masks is not None:
-        raise ValueError("SelfLift: noise_mask is not compatible with highres_tiling")
 
     model_sampling = model.get_model_object("model_sampling")
     _validate_sampling(model_sampling, sampler)
@@ -372,7 +384,14 @@ def progressive_sample(model, positive, negative, vae, latent_image, sampler, si
         model, latent_image["samples"], latent_image.get("downscale_ratio_spacial", None),
         latent_image.get("downscale_ratio_temporal", None)))
     hires_base = model_hires if model_hires is not None else model
-    high_model = h3_tiling.tiled_model(hires_base, [tuple(stream.shape) for stream in streams]) if highres_tiling else hires_base
+    high_model = (
+        h3_tiling.tiled_model(
+            hires_base,
+            [tuple(stream.shape) for stream in streams],
+            overlap_patches=tile_overlap_patches,
+        )
+        if highres_tiling else hires_base
+    )
     video = streams[0].ndim == 5
     if video:
         b, c, t, H, W = streams[0].shape
@@ -551,7 +570,13 @@ def progressive_sample(model, positive, negative, vae, latent_image, sampler, si
     # update is discarded and rebuilt after the resolution transition, preserving NFE.
     resolution_scale = (getattr(model.get_model_object("latent_format"), "spacial_downscale_ratio", 1)
                         if video else getattr(model.get_model_object("latent_format"), "spacial_downscale_ratio", 1))
-    low_timer = _StageTimer("low_resolution", low_model.load_device, (h, w), resolution_scale)
+    low_timer = _StageTimer(
+        "SelfLift low-resolution first pass",
+        low_model.load_device,
+        (h, w),
+        resolution_scale,
+        timing_label,
+    )
     low_drift_state = low_model.model_options.get(_DRIFT_CONTROL_KEY)
     if callable(getattr(low_drift_state, "configure_selflift_stage", None)):
         low_drift_state.configure_selflift_stage(
@@ -567,7 +592,13 @@ def progressive_sample(model, positive, negative, vae, latent_image, sampler, si
         raise RuntimeError(f"SelfLift: expected {transition_step} low-resolution callbacks, received {low_evaluations}; check sampler wrappers")
     low_timer.finish()
     log_memory("low_resolution end", model.load_device)
-    transition_timer = _StageTimer("transition", model.load_device, (H, W), resolution_scale)
+    transition_timer = _StageTimer(
+        "SelfLift resolution transition",
+        model.load_device,
+        (H, W),
+        resolution_scale,
+        timing_label,
+    )
     low_streams, nested = _streams(transition.pop("state"))
     x0_streams, _ = _streams(transition.pop("x0"))
     sigma_k = sigmas[transition_step - 1]
@@ -717,7 +748,13 @@ def progressive_sample(model, positive, negative, vae, latent_image, sampler, si
         high_timer.mark(f"step {step + 1}/{total_steps - transition_step}" + (" (includes setup)" if step == 0 else ""))
         return result
 
-    high_timer = _StageTimer("high_resolution", model.load_device, (H, W), resolution_scale)
+    high_timer = _StageTimer(
+        "SelfLift high-resolution second pass",
+        model.load_device,
+        (H, W),
+        resolution_scale,
+        timing_label,
+    )
     high_drift_state = high_model.model_options.get(_DRIFT_CONTROL_KEY)
     if callable(getattr(high_drift_state, "configure_selflift_stage", None)):
         high_drift_state.configure_selflift_stage(
@@ -788,6 +825,8 @@ class SelfLiftH3Sampler:
         }, "optional": {
             "model_hires": ("MODEL", {"tooltip": "Optional: model used for the high-resolution stage instead of `model` (e.g. a different checkpoint or LoRA stack). Must share the same architecture and latent format. The low-resolution prefix always runs on `model`."}),
             "highres_tiling": ("BOOLEAN", {"default": False, "label_on": "高分辨率分块：开启", "label_off": "高分辨率分块：关闭", "tooltip": "Experimental: select 1–8 spatial tiles from available memory at high-resolution preparation. Audio input and references remain complete; only the first tile's audio prediction is retained. Quality and speed may change."}),
+            "tile_overlap_patches": ("INT", {"default": 0, "min": 0, "max": 4, "tooltip": "Spatial tile overlap in H3 patches: 0 uses the startup setting (default 4), or choose 1, 2, or 4. Lower overlap may increase seam artifacts."}),
+            "timing_label": ("STRING", {"default": "SelfLift"}),
         }}
 
     RETURN_TYPES = ("LATENT",)
@@ -795,7 +834,8 @@ class SelfLiftH3Sampler:
     CATEGORY = "selflift"
 
     def sample(self, model, positive, negative, vae, latent_image, sampler, sigmas, seed, cfg,
-               transition_step, lowres_scale, rho, w_min, w_max, upscaler_model, model_hires=None, highres_tiling=False):
+               transition_step, lowres_scale, rho, w_min, w_max, upscaler_model, model_hires=None,
+               highres_tiling=False, tile_overlap_patches=0, timing_label="SelfLift"):
         if rho == 0.0 and upscaler_model == "none":
             raise ValueError(
                 "SelfLift H3: rho=0 with upscaler_model=none disables both SelfLift-zero correction "
@@ -810,7 +850,9 @@ class SelfLiftH3Sampler:
             )
         return (progressive_sample(model, positive, negative, vae, latent_image, sampler, sigmas, seed, cfg,
                                    transition_step, lowres_scale, rho, w_min, w_max, "nearest",
-                                   latent_lifter=lifter, highres_tiling=highres_tiling, model_hires=model_hires),)
+                                   latent_lifter=lifter, highres_tiling=highres_tiling, model_hires=model_hires,
+                                   timing_label=timing_label,
+                                   tile_overlap_patches=tile_overlap_patches),)
 
 
 class SelfLiftImageSampler:
@@ -868,5 +910,3 @@ class SelfLiftH3TST:
 
     def patch(self, model, tau, log_diagnostics):
         return (h3_tst.patch_model(model, tau, log_diagnostics),)
-
-

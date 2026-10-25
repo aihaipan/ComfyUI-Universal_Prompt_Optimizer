@@ -100,6 +100,8 @@ GPL-3.0-or-later
 
 #### Selflift (极速)：全自动一采+二采。实测数据（5070Ti，0.4mp，8步）：仅需 79.9 秒！
 
+SelfLift 高分辨率切片默认使用 4-patch 重叠。导演台 Max 的“音频与二采设置”中可直接选择切片重叠；“自动”沿用启动设置（未设置时为 4）。1-patch 是实验选项，可能增加接缝或造成画质变化。也可通过启动参数 `UNIVERSAL_DIRECTOR_TILE_OVERLAP_PATCHES=1`、`=2` 或 `=4` 设置默认值；Windows 用户可在启动 ComfyUI 的 `.bat` 文件中、Python 启动命令之前添加 `set UNIVERSAL_DIRECTOR_TILE_OVERLAP_PATCHES=2`。只接受 1、2 或 4。
+
 #### Refine (高清)：全自动一采+二采，追求极致画质。
 
 #### 手动模式：支持“手动一采+手动二采”，先抽卡，满意后再放大，极致节省时间。

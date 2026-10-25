@@ -337,6 +337,14 @@ class UniversalDirectorUI(io.ComfyNode):
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True, default="", extra_dict={"hidden": True}),
                 *media_inputs,
                                 io.String.Input("gh_state_json", default="", optional=True, extra_dict={"hidden": True}),
+                io.Int.Input(
+                    "tile_overlap_patches",
+                    default=0,
+                    min=0,
+                    max=4,
+                    optional=True,
+                    extra_dict={"hidden": True},
+                ),
                 io.String.Input("segments_json", default="", optional=True, extra_dict={"hidden": True}),
             ],
             outputs=[
@@ -346,7 +354,7 @@ class UniversalDirectorUI(io.ComfyNode):
 
     @classmethod
     def execute(cls, clip=None, model=None, vae=None, audio_vae=None, width=1024, height=1024, resize_mode="cover",
-                                prompt="", gh_state_json="", segments_json="", **media):
+                                prompt="", gh_state_json="", segments_json="", tile_overlap_patches=0, **media):
         
         # 1. 获取宽高及高级参数
         _w, _h = width, height
@@ -357,6 +365,7 @@ class UniversalDirectorUI(io.ComfyNode):
         _audio_mode = "参考音色"
         _save_prefix = "Universal_MiniMax_H3director/Universal_MiniMax_H3director"
         _bridge_overlaps = ""
+        _tile_overlap_patches = int(tile_overlap_patches or 0)
         _save_video = False  # 【修复】给个初始值，避免未定义报错
         try:
             if gh_state_json:
@@ -376,8 +385,23 @@ class UniversalDirectorUI(io.ComfyNode):
                 if "dirAudioMode" in st: _audio_mode = str(st["dirAudioMode"])
                 if "dirSavePrefix" in st: _save_prefix = str(st["dirSavePrefix"])
                 if "dirBridgeOverlaps" in st: _bridge_overlaps = str(st["dirBridgeOverlaps"])
+                if "dirTileOverlapPatches" in st:
+                    state_tile_overlap = int(st["dirTileOverlapPatches"] or 0)
+                    if state_tile_overlap != _tile_overlap_patches:
+                        logging.info(
+                            "【UniversalDirectorConsole】SelfLift 切片重叠："
+                            "UI状态=%d，隐藏控件=%d；采用UI状态",
+                            state_tile_overlap,
+                            _tile_overlap_patches,
+                        )
+                    _tile_overlap_patches = state_tile_overlap
         except Exception as e:
             logging.warning(f"解析导演参数失败: {e}")
+
+        logging.info(
+            "【UniversalDirectorConsole】SelfLift 切片重叠请求：%d（0=自动）",
+            _tile_overlap_patches,
+        )
 
         # 2. 极简媒体打包（只提取路径，不加载图片 Tensor，极速！）
         media_bundle = {
@@ -422,6 +446,7 @@ class UniversalDirectorUI(io.ComfyNode):
             fps=24,
             filename_prefix=_save_prefix,
             bridge_overlaps=_bridge_overlaps,
+            tile_overlap_patches=_tile_overlap_patches,
             refmod_mods=refmod_mods  # 【补上】传给中转层
         )
 

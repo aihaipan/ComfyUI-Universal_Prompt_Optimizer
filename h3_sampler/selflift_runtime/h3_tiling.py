@@ -4,6 +4,8 @@ from functools import partial
 import inspect
 import logging
 import math
+import os
+import time
 
 import torch
 
@@ -14,12 +16,12 @@ import comfy.patcher_extension
 import comfy.sampler_helpers
 
 
-def _regions(length, tile_count=2):
+def _regions(length, tile_count=2, overlap_patches=4):
     patches = (length + 1) // 2
     tile_count = max(1, min(tile_count, max(1, patches // 2)))
     if patches < 4 or tile_count <= 1:
         return [(0, length)]
-    overlap = min(4, max(1, patches // 8))
+    overlap = min(overlap_patches, max(1, patches // 8))
     regions = []
     for index in range(tile_count):
         start = max(0, index * patches // tile_count - overlap) * 2
@@ -28,6 +30,25 @@ def _regions(length, tile_count=2):
         regions.append((start, end))
     regions[-1] = (regions[-1][0], length)
     return regions
+
+
+def _configured_overlap_patches(requested=None):
+    value = requested
+    if value in (None, 0):
+        value = os.environ.get("UNIVERSAL_DIRECTOR_TILE_OVERLAP_PATCHES", "4").strip()
+    try:
+        overlap_patches = int(value)
+    except ValueError as exc:
+        raise ValueError(
+            "Tile overlap must be 1, 2, or 4 patch(es); environment variable "
+            "UNIVERSAL_DIRECTOR_TILE_OVERLAP_PATCHES accepts the same values"
+        ) from exc
+    if overlap_patches not in (1, 2, 4):
+        raise ValueError(
+            "Tile overlap must be 1, 2, or 4 patch(es); environment variable "
+            "UNIVERSAL_DIRECTOR_TILE_OVERLAP_PATCHES accepts the same values"
+        )
+    return overlap_patches
 
 
 def _packed_layout(signature, payload):
@@ -71,12 +92,36 @@ def _tile_payload(payload, context, video, audio, axis, start, end):
     return tiled
 
 
+def _tile_forward_kwargs(kwargs, video, axis, start, end):
+    tiled_kwargs = kwargs.copy()
+    denoise_mask = kwargs.get("denoise_mask")
+    if denoise_mask is None:
+        return tiled_kwargs
+    if (
+        not torch.is_tensor(denoise_mask)
+        or denoise_mask.ndim != video.ndim
+        or denoise_mask.shape[0] != video.shape[0]
+        or denoise_mask.shape[1] != 1
+        or tuple(denoise_mask.shape[2:]) != tuple(video.shape[2:])
+    ):
+        shape = tuple(denoise_mask.shape) if torch.is_tensor(denoise_mask) else type(denoise_mask).__name__
+        raise ValueError(
+            "SelfLift: high-resolution tiling requires a video denoise mask matching "
+            f"the full latent grid; got {shape} for {tuple(video.shape)}"
+        )
+    tiled_kwargs["denoise_mask"] = denoise_mask.narrow(
+        axis, start, end - start
+    ).contiguous()
+    return tiled_kwargs
+
+
 def _tiled_forward(executor, streams, timestep, context, transformer_options, minimax_payload=None,
                    n_tiles=2, plan=None, **kwargs):
     video, audio = streams
     axis = 3 if (video.shape[3] + 1) // 2 >= (video.shape[4] + 1) // 2 else 4
     length = video.shape[axis]
-    regions = _regions(length, plan['tiles'] if plan is not None else n_tiles)
+    overlap_patches = plan["overlap_patches"] if plan is not None else _configured_overlap_patches()
+    regions = _regions(length, plan['tiles'] if plan is not None else n_tiles, overlap_patches)
     if len(regions) == 1:
         return executor(streams, timestep, context, transformer_options, minimax_payload=minimax_payload, **kwargs)
     if kwargs.get("control") is not None:
@@ -86,11 +131,19 @@ def _tiled_forward(executor, streams, timestep, context, transformer_options, mi
     video_output = torch.zeros(video.shape, dtype=torch.float32, device="cpu")
     audio_output = None
     weights = torch.zeros(length, dtype=torch.float32, device="cpu")
+    forward_started = time.perf_counter()
+    tile_forward_seconds = 0.0
     for index, (start, end) in enumerate(regions):
         tile = video.narrow(axis, start, end - start).contiguous()
         payload = _tile_payload(minimax_payload or {}, context, video, audio, axis, start, end)
+        tile_kwargs = _tile_forward_kwargs(kwargs, video, axis, start, end)
+        tile_started = time.perf_counter()
         predicted_video, predicted_audio = executor(
-            [tile, audio], timestep, context, transformer_options.copy(), minimax_payload=payload, **kwargs)
+            [tile, audio], timestep, context, transformer_options.copy(),
+            minimax_payload=payload, **tile_kwargs)
+        if video.device.type == "cuda":
+            torch.cuda.synchronize(video.device)
+        tile_forward_seconds += time.perf_counter() - tile_started
         window = torch.ones(end - start, device=video.device, dtype=torch.float32)
         if index > 0:
             overlap = min(end, regions[index - 1][1]) - start
@@ -106,9 +159,18 @@ def _tiled_forward(executor, streams, timestep, context, transformer_options, mi
         video_output.narrow(axis, start, end - start).addcmul_(predicted_video.float(), window.view(window_shape))
         if audio_output is None:
             audio_output = predicted_audio.float().clone()
-        del tile, payload, predicted_video, predicted_audio, window
+        del tile, payload, tile_kwargs, predicted_video, predicted_audio, window
     window_shape[axis] = length
     video_output.div_(weights.view(window_shape))
+    logging.info(
+        "【UniversalDirectorConsole Timing】High-resolution tiled denoise: %d tile(s), "
+        "configured overlap %d patch(es), model forwards %.3fs, total %.3fs, CUDA peak %.2f GiB",
+        len(regions),
+        overlap_patches,
+        tile_forward_seconds,
+        time.perf_counter() - forward_started,
+        torch.cuda.max_memory_allocated(video.device) / 2**30 if video.device.type == "cuda" else 0.0,
+    )
     return [video_output.to(device=video.device, dtype=video.dtype), audio_output.to(audio.dtype)]
 
 
@@ -154,30 +216,55 @@ def _prepare_tiled_sampling(executor, model, noise_shape, conds, model_options=N
     full_elements = math.prod(video_shape[1:]) + math.prod(audio_shape[1:])
     if tuple(noise_shape) != (video_shape[0], 1, full_elements):
         raise ValueError("SelfLift: tiled memory planning received a different latent shape than the sampling input")
+    overlap_patches = (
+        plan["overlap_patches"]
+        if plan is not None
+        else _configured_overlap_patches()
+    )
     count = 2
     if plan is not None:
         available = _available_workspace(model)
-        for count in range(1, 9):
-            regions = _regions(video_shape[axis], count)
+        forced_tiles = int(os.environ.get("UNIVERSAL_DIRECTOR_TILE_COUNT", "0"))
+        for count in [forced_tiles] if forced_tiles else range(1, 9):
+            regions = _regions(video_shape[axis], count, overlap_patches)
             _, _, _, _, minimum = _budget(model, noise_shape, conds, latent_shapes, regions, axis)
             if minimum <= available:
                 break
         count = len(regions)
         plan['tiles'] = count
-        logging.debug("[TimelineDirector tiling] axis=%s tiles=%d target=%.2f MiB estimate_fits=%s",
-                     'H' if axis == 3 else 'W', plan['tiles'], available / 2**20, minimum <= available)
-    regions = _regions(video_shape[axis], count)
+        plan['overlap_patches'] = overlap_patches
+        logging.info(
+            "【UniversalDirectorConsole Tiling】 axis=%s tiles=%d configured_overlap=%d patch(es) target=%.2f MiB estimate_fits=%s",
+            'H' if axis == 3 else 'W', plan['tiles'], overlap_patches, available / 2**20,
+            minimum <= available,
+        )
+    regions = _regions(video_shape[axis], count, overlap_patches)
+    prepare_started = time.perf_counter()
     if len(regions) == 1 or force_offload:
-        return executor(model, noise_shape, conds, model_options=model_options,
-                        force_full_load=force_full_load, force_offload=force_offload)
+        prepared = executor(model, noise_shape, conds, model_options=model_options,
+                            force_full_load=force_full_load, force_offload=force_offload)
+        if model.load_device.type == "cuda":
+            torch.cuda.synchronize(model.load_device)
+        logging.info(
+            "【UniversalDirectorConsole Timing】High-resolution model preparation/loading: %.3fs",
+            time.perf_counter() - prepare_started,
+        )
+        return prepared
     budget_shape, tile_shape, buffer_bytes, preferred, minimum = _budget(
         model, noise_shape, conds, latent_shapes, regions, axis)
-    logging.debug("[TimelineDirector tiling] largest_tile=%s full_audio=%s full_state_buffers=%.2f MiB "
+    logging.debug("【UniversalDirectorConsole Tiling】 largest_tile=%s full_audio=%s full_state_buffers=%.2f MiB "
                  "minimum=%.2f MiB preferred=%.2f MiB (ComfyUI estimates; additional models and reserves excluded)",
                  tuple(tile_shape), audio_shape, buffer_bytes * noise_shape[0] / 2**20,
                  minimum / 2**20, preferred / 2**20)
-    return executor(model, budget_shape, conds, model_options=model_options,
-                    force_full_load=force_full_load, force_offload=force_offload)
+    prepared = executor(model, budget_shape, conds, model_options=model_options,
+                        force_full_load=force_full_load, force_offload=force_offload)
+    if model.load_device.type == "cuda":
+        torch.cuda.synchronize(model.load_device)
+    logging.info(
+        "【UniversalDirectorConsole Timing】High-resolution model preparation/loading: %.3fs",
+        time.perf_counter() - prepare_started,
+    )
+    return prepared
 
 
 def _available_workspace(model):
@@ -197,18 +284,18 @@ def _available_workspace(model):
     pool = min(manager.get_total_memory(model.load_device), free + reclaimable)
     weights = min(model.model_size(), pool * manager.MIN_WEIGHT_MEMORY_RATIO)
     available = max(0, pool - weights - manager.minimum_inference_memory())
-    logging.debug("[TimelineDirector tiling] free=%.2f MiB reclaimable_weights=%.2f MiB "
+    logging.debug("【UniversalDirectorConsole Tiling】 free=%.2f MiB reclaimable_weights=%.2f MiB "
                  "weight_allowance=%.2f MiB workspace=%.2f MiB",
                  free / 2**20, reclaimable / 2**20, weights / 2**20, available / 2**20)
     return available
 
 
-def tiled_model(model, latent_shapes):
+def tiled_model(model, latent_shapes, overlap_patches=None):
     if not isinstance(model.model, comfy.model_base.MiniMaxH3):
         raise ValueError("SelfLift: high-resolution tiling requires a MiniMax H3 model")
     if len(latent_shapes) != 2 or len(latent_shapes[0]) != 5 or len(latent_shapes[1]) != 4:
         raise ValueError("SelfLift: high-resolution tiling requires H3 video and audio latent streams")
-    plan = {}
+    plan = {"overlap_patches": _configured_overlap_patches(overlap_patches)}
     patched = model.clone()
     patched.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL,
                                  "selflift_high_resolution_tiling", partial(_tiled_forward, plan=plan))

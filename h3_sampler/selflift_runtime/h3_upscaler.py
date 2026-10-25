@@ -152,8 +152,8 @@ class LatentResizer3D(nn.Module):
     def temporal_chunk_settings(self):
         for block in self.in_blocks:
             if isinstance(block, TemporalConv):
-                return 32, block.dwconv.weight.shape[2]
-        return 32, 0
+                return getattr(self, "_inference_temporal_chunk", 32), block.dwconv.weight.shape[2]
+        return getattr(self, "_inference_temporal_chunk", 32), 0
 
     def temporal_receptive_radius(self):
         """Return the exact finite temporal-convolution radius of the network.
@@ -186,6 +186,7 @@ class LatentResizer3D(nn.Module):
         if size == x.shape[-3:]:
             return x
 
+        x = x.contiguous(memory_format=torch.channels_last_3d)
         B, C, T, H, W = x.shape
 
         chunk, overlap = self.temporal_chunk_settings()
@@ -195,14 +196,19 @@ class LatentResizer3D(nn.Module):
 
         x_padded = F.pad(x, (0, 0, 0, 0, overlap, overlap), mode='replicate')
 
-        out_full = torch.zeros(B, C, T, size[-2], size[-1], device=x.device, dtype=x.dtype)
+        out_full = torch.empty(
+            (B, C, T, size[-2], size[-1]), device=x.device, dtype=x.dtype,
+            memory_format=torch.channels_last_3d,
+        ).zero_()
         weight_full = torch.zeros(1, 1, T, 1, 1, device=x.device, dtype=x.dtype)
 
         for seg_start, seg_end, out_start, out_end in _temporal_windows(T, chunk, overlap):
             lo = out_start
             hi = out_end + 2 * overlap
 
-            seg = x_padded[:, :, lo:hi].contiguous()
+            seg = x_padded[:, :, lo:hi].contiguous(
+                memory_format=torch.channels_last_3d
+            )
             seg_size = (hi - lo, size[-2], size[-1])
             seg_out = self._forward_seg(seg, scale, seg_size)
 
@@ -395,6 +401,8 @@ def _load_model(model_name, device):
         )
     model.load_state_dict(sd, strict=True, assign=True)
     model = model.eval().requires_grad_(False)
+    if device.type == "cuda":
+        model.to(memory_format=torch.channels_last_3d)
     patcher = comfy.model_patcher.CoreModelPatcher(
         model, load_device=device,
         offload_device=comfy.model_management.unet_offload_device())
@@ -407,7 +415,76 @@ def _inference_memory_required(model, z0_low, out_hw):
     T = z0_low.shape[2]
     temporal_window = model.temporal_window_budget(T)
     feature_elements = z0_low.shape[0] * model.conv_in.out_channels * temporal_window * H * W
-    return feature_elements * model.conv_in.weight.element_size() * 8
+    return feature_elements * model.conv_in.weight.element_size() * 4
+
+
+def _reclaim_upscaler_memory(memory_required, patcher, device):
+    if device.type != "cuda":
+        return
+    model_management = comfy.model_management
+    minimum_free = (
+        memory_required * 1.5
+        + patcher.model_size()
+        + model_management.extra_reserved_memory()
+    )
+    minimum_free = max(minimum_free, model_management.minimum_inference_memory())
+    free_before = model_management.get_free_memory(device)
+    logging.info(
+        "【UniversalDirectorConsole】SelfLift latent upscaler memory: "
+        "estimated_workspace=%.0f MiB free_before=%.0f MiB required_free=%.0f MiB",
+        memory_required / 2**20,
+        free_before / 2**20,
+        minimum_free / 2**20,
+    )
+    if free_before >= minimum_free:
+        return
+    model_management.free_memory(
+        minimum_free,
+        device,
+        for_dynamic=False,
+    )
+    model_management.soft_empty_cache()
+    free_after = model_management.get_free_memory(device)
+    logging.info(
+        "【UniversalDirectorConsole】SelfLift latent upscaler released "
+        "unused GPU model residency: free_after=%.0f MiB",
+        free_after / 2**20,
+    )
+
+
+def _fit_temporal_chunk_to_memory(patcher, z0_low, out_hw, device, memory_required):
+    if device.type != "cuda":
+        return memory_required
+    model_management = comfy.model_management
+    model = patcher.model
+    available_workspace = max(
+        0,
+        model_management.get_free_memory(device)
+        - patcher.model_size()
+        - model_management.extra_reserved_memory(),
+    )
+    # The workspace estimate undercounts conv3d activations, so keep a 1.5x margin.
+    if memory_required * 1.5 <= available_workspace:
+        return memory_required
+
+    start_chunk, _ = model.temporal_chunk_settings()
+    for chunk in (16, 8):
+        if chunk >= start_chunk:
+            continue
+        model._inference_temporal_chunk = chunk
+        memory_required = _inference_memory_required(model, z0_low, out_hw)
+        logging.info(
+            "【UniversalDirectorConsole】SelfLift latent upscaler adapting temporal "
+            "chunk: %d→%d frames, estimated workspace %.0f MiB, "
+            "available workspace %.0f MiB",
+            start_chunk,
+            chunk,
+            memory_required / 2**20,
+            available_workspace / 2**20,
+        )
+        if memory_required * 1.5 <= available_workspace:
+            break
+    return memory_required
 
 
 def learned_latent_lift(z0_low, out_hw, model_name, device=None, temporal_split=None):
@@ -424,6 +501,7 @@ def learned_latent_lift(z0_low, out_hw, model_name, device=None, temporal_split=
     log_memory("upscaler before_load", device)
     patcher = _load_model(model_name, device)
     model = patcher.model
+    model._inference_temporal_chunk = 32
     memory_required = _inference_memory_required(model, z0_low, (H, W))
     length = z0_low.shape[2]
     chunk, overlap = model.temporal_chunk_settings()
@@ -440,6 +518,29 @@ def learned_latent_lift(z0_low, out_hw, model_name, device=None, temporal_split=
                  H / h, W / w, scale - 1.0, "identity" if identity else "chunked" if chunked else "full",
                  chunk, overlap if chunked else 0, len(windows) if chunked else int(not identity),
                  actual_window if not identity else 0, budget_window, memory_required / 2**20)
+    _reclaim_upscaler_memory(memory_required, patcher, device)
+    memory_required = _fit_temporal_chunk_to_memory(
+        patcher, z0_low, (H, W), device, memory_required
+    )
+    chunk, overlap = model.temporal_chunk_settings()
+    chunked = not identity and length > chunk
+    windows = list(_temporal_windows(length, chunk, overlap)) if chunked else []
+    budget_window = model.temporal_window_budget(length)
+    actual_window = max(
+        end - start + 2 * overlap
+        for _, _, start, end in windows
+    ) if chunked else length
+    logging.info(
+        "【UniversalDirectorConsole】SelfLift latent upscaler temporal plan: "
+        "chunk=%d overlap=%d frames windows=%d max_input_window=%d "
+        "window_budget=%d estimated_workspace=%.0f MiB",
+        chunk,
+        overlap if chunked else 0,
+        len(windows),
+        actual_window,
+        budget_window,
+        memory_required / 2**20,
+    )
     comfy.model_management.load_models_gpu([patcher], memory_required=memory_required)
     log_memory("upscaler after_load", device)
     dtype = model.conv_in.weight.dtype

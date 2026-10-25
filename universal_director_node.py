@@ -49,7 +49,8 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
                 refine_width=None, refine_height=None,
                 second_pass=False, second_pass_model="", second_pass_high_steps=2, second_pass_mode="selflift", exec_mode="full",
                 audio_mode="参考音色", bridge_overlaps="", save_video=False, 
-                filename_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director", refmod_mods=None):
+                filename_prefix="Universal_MiniMax_H3director/Universal_MiniMax_H3director", refmod_mods=None,
+                tile_overlap_patches=0):
         
         # 【防御】检查所有必须的模型输入
         if vae is None or clip is None or model is None or audio_vae is None:
@@ -99,6 +100,7 @@ class UniversalMiniMax_H3Director(io.ComfyNode):
             second_pass_model=second_pass_model, 
             second_pass_high_steps=second_pass_high_steps, 
             second_pass_mode=second_pass_mode,
+            tile_overlap_patches=tile_overlap_patches,
             exec_mode=exec_mode,
             bridge_overlaps=bridge_overlaps,
             sampler_name="euler", scheduler="simple", steps=steps, denoise=1.0, seed=seed,

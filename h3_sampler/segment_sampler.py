@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import gc
+import time
 
 import copy
 import json
@@ -48,6 +49,11 @@ from .director_core import (
     _safe_input_path,
     _timeline_video_audio,
 )
+
+def _timing_now() -> float:
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    return time.perf_counter()
 
 H3_FPS = 24
 FiniteSegmentPlan = io.Custom("MINIMAX_H3_FINITE_SEGMENT_PLAN")
@@ -325,23 +331,265 @@ def _parse_segment_prompts(value: str) -> list[str]:
     return prompts
 
 
-def _inject_continuity_instruction(prompt: str, overlap_frames: int) -> tuple[str, bool]:
+def _inject_continuity_instruction(
+    prompt: str,
+    overlap_frames: int,
+    timeline_range: tuple[float, float] | None = None,
+) -> tuple[str, bool]:
     duration = overlap_frames / H3_FPS
+    timeline_instruction = ""
+    if timeline_range is not None:
+        timeline_start, timeline_end = timeline_range
+        timeline_instruction = (
+            f" This is a later window in one continuous video, covering global time "
+            f"{timeline_start:.2f}-{timeline_end:.2f} seconds. Continue the action at "
+            "this point in the supplied timeline. Do not restart the opening or repeat "
+            "actions completed before this window. Treat its opening as the carried "
+            "overlap, then advance to the next not-yet-completed action."
+        )
     instruction = (
         f" The opening 00:00.000-00:{duration:06.3f} is a carried latent continuation "
         "from the preceding segment. Describe this opening as the preceding segment's "
         "final shot, preserving character positions, environment, motion, camera path, "
         "lighting, color, and sound before introducing new action."
+        f"{timeline_instruction}"
     )
-    for field in ("integrated_multimodal_description:", "detailed_description:"):
+    for field in ("detailed_description:", "integrated_multimodal_description:"):
         field_index = prompt.find(field)
         if field_index < 0:
             continue
         shot_index = prompt.find("[Shot 1]", field_index + len(field))
         if shot_index >= 0:
             insert_at = shot_index + len("[Shot 1]")
+            time_range = re.match(
+                r"\s*\d+(?:\.\d+)?\s*(?:s|秒)\s*[-–]\s*"
+                r"\d+(?:\.\d+)?\s*(?:s|秒)\s*:",
+                prompt[insert_at:],
+                re.IGNORECASE,
+            )
+            if time_range:
+                insert_at += time_range.end()
             return prompt[:insert_at] + instruction + prompt[insert_at:], True
     return prompt, False
+
+
+def _crop_prompt_to_timeline_window(
+    prompt: str,
+    window_start: float,
+    window_end: float,
+    overlap_frames: int,
+    continuation: bool,
+) -> tuple[str, int | None]:
+    section_pattern = re.compile(
+        r"(?im)^(?:integrated_multimodal_description|detailed_description)\s*[:：][ \t]*$"
+    )
+    shot_pattern = re.compile(
+        r"\[Shot\s+(\d+)\]\s*(\d+(?:\.\d+)?)\s*(?:s|秒)\s*[-–]\s*"
+        r"(\d+(?:\.\d+)?)\s*(?:s|秒)\s*:",
+        re.IGNORECASE,
+    )
+    sections = list(section_pattern.finditer(prompt))
+    if not sections:
+        return prompt, None
+
+    updated = prompt
+    selected_count = 0
+    found_timed_shots = False
+    action_start = window_start + overlap_frames / H3_FPS
+    for section_index in range(len(sections) - 1, -1, -1):
+        section = sections[section_index]
+        body_start = section.end()
+        body_end = (
+            sections[section_index + 1].start()
+            if section_index + 1 < len(sections)
+            else len(prompt)
+        )
+        body = prompt[body_start:body_end]
+        shots = list(shot_pattern.finditer(body))
+        if not shots:
+            continue
+        found_timed_shots = True
+
+        kept = []
+        for shot_index, shot in enumerate(shots):
+            shot_start = float(shot.group(2))
+            shot_end = float(shot.group(3))
+            if shot_end <= action_start:
+                continue
+            clipped_start = max(shot_start, action_start, window_start)
+            clipped_end = min(shot_end, window_end)
+            if clipped_end <= clipped_start:
+                continue
+            block_end = shots[shot_index + 1].start() if shot_index + 1 < len(shots) else len(body)
+            block = body[shot.start():block_end]
+            local_start = clipped_start - window_start
+            local_end = clipped_end - window_start
+            replacement = (
+                f"[Shot {len(kept) + 1}] {local_start:.2f}s-{local_end:.2f}s:"
+            )
+            if continuation and shot_start < action_start:
+                local_action_start = action_start - window_start
+                block = (
+                    f"{replacement} This shot is already underway at "
+                    f"{local_action_start:.2f}s. Continue only from the carried visual "
+                    "state until the next timed shot. Preserve current poses, wardrobe, "
+                    "props, and scene; do not repeat or reverse any action already shown.\n"
+                )
+            else:
+                block = shot_pattern.sub(replacement, block, count=1)
+            kept.append(block)
+
+        if kept:
+            selected_count = max(selected_count, len(kept))
+            cropped_body = (
+                body[:shots[0].start()]
+                + "Dialogue is heard only as the characters' voices; keep the image focused "
+                "on the described scene and actions.\n"
+                + "".join(kept)
+            )
+        else:
+            cropped_body = body[:shots[0].start()]
+        updated = updated[:body_start] + cropped_body + updated[body_end:]
+
+    section_replacements = [
+        (
+            "summary",
+            (
+                f"This window covers global time {window_start:.2f}-{window_end:.2f} "
+                "seconds. Generate only the timed actions included in this window; do "
+                "not preview actions assigned to later windows.\n\n"
+                if not continuation else
+                "This is a continuation of the same video. Actions completed before this "
+                "window are already over; continue from the carried visual state and perform "
+                "only the remaining timeline actions.\n\n"
+            ),
+        ),
+    ]
+    section_replacements.append((
+        "retention_analysis",
+        (
+            "Preserve each subject's identity and the scene. Reference images establish "
+            "identity and initial appearance, not a state to restore later. Keep every "
+            "wardrobe, pose, prop, and location change made by an earlier shot; follow "
+            "the shot chronology and never repeat or reverse a completed change.\n\n"
+            if continuation else
+            "Preserve each subject's identity and initial appearance from the references. "
+            "Change wardrobe, poses, props, and the scene only as directed by this window's "
+            "timed shots; do not preview later changes.\n\n"
+        ),
+    ))
+    for section_name, replacement in section_replacements:
+        section_pattern = re.compile(
+            rf"(?ims)^{section_name}\s*:\s*\n.*?"
+            r"(?=^\s*(?:subject_definitions|summary|retention_analysis|"
+            r"detailed_description|integrated_multimodal_description|"
+            r"overall_soundscape|non_diegetic_music)\s*[:：]|$)"
+        )
+        matches = list(section_pattern.finditer(updated))
+        for match in reversed(matches):
+            heading = f"{section_name}:\n"
+            updated = updated[:match.start()] + heading + replacement + updated[match.end():]
+
+    return (updated, selected_count) if found_timed_shots else (prompt, None)
+
+
+def _selflift_shot_boundaries(prompt: str) -> tuple[int, ...]:
+    shot_pattern = re.compile(
+        r"\[Shot\s+\d+\]\s*(\d+(?:\.\d+)?)\s*(?:s|秒)\s*[-–]\s*"
+        r"\d+(?:\.\d+)?\s*(?:s|秒)\s*:",
+        re.IGNORECASE,
+    )
+    boundaries = {
+        round(float(value) * H3_FPS)
+        for value in shot_pattern.findall(prompt)
+    }
+    return tuple(sorted(value for value in boundaries if value > 0))
+
+
+def _selflift_window_plan(
+    total_frames: int,
+    max_window_frames: int,
+    overlap_frames: int,
+    shot_boundaries: tuple[int, ...],
+) -> list[tuple[int, int]]:
+    valid_cuts = range(5, total_frames, 17)
+    minimum_window_frames = 56
+    boundaries = tuple(value for value in shot_boundaries if 0 < value < total_frames)
+    plans: dict[int, tuple[int, int, int, tuple[int, ...]]] = {}
+
+    def cut_distance(cut: int) -> int:
+        return min((abs(cut - boundary) for boundary in boundaries), default=0)
+
+    for cut in valid_cuts:
+        if cut < minimum_window_frames:
+            continue
+        best = (
+            (1, cut_distance(cut), cut * cut, (cut,))
+            if cut <= max_window_frames else None
+        )
+        for previous, previous_plan in plans.items():
+            window_length = cut - previous + overlap_frames
+            if not minimum_window_frames <= window_length <= max_window_frames:
+                continue
+            candidate = (
+                previous_plan[0] + 1,
+                previous_plan[1] + cut_distance(cut),
+                previous_plan[2] + window_length * window_length,
+                previous_plan[3] + (cut,),
+            )
+            if best is None or candidate[:3] < best[:3]:
+                best = candidate
+        if best is not None:
+            plans[cut] = best
+
+    best_final = None
+    for previous, previous_plan in plans.items():
+        final_length = total_frames - previous + overlap_frames
+        if not minimum_window_frames <= final_length <= max_window_frames:
+            continue
+        candidate = (
+            previous_plan[0] + 1,
+            previous_plan[1],
+            previous_plan[2] + final_length * final_length,
+            previous_plan[3],
+        )
+        if best_final is None or candidate[:3] < best_final[:3]:
+            best_final = candidate
+
+    if best_final is None:
+        raise ValueError(
+            "SelfLift could not divide this duration into H3-aligned windows "
+            f"between {minimum_window_frames} and {max_window_frames} frames"
+        )
+
+    cuts = best_final[3]
+    windows = [(0, cuts[0])]
+    windows.extend(
+        (previous - overlap_frames, current)
+        for previous, current in zip(cuts, cuts[1:])
+    )
+    windows.append((cuts[-1] - overlap_frames, total_frames))
+    return windows
+
+
+def _selflift_shot_aligned_windows(
+    finite: dict, max_window_frames: int, overlap_frames: int,
+):
+    prompts = finite.get("prompts") or []
+    if not prompts:
+        return None
+    total_frames = int(finite.get("target_output_frames") or 0)
+    if total_frames <= max_window_frames:
+        return None
+    boundaries = _selflift_shot_boundaries(str(prompts[0]))
+    if not boundaries:
+        return None
+    return _selflift_window_plan(
+        total_frames,
+        max_window_frames,
+        overlap_frames,
+        boundaries,
+    )
 
 
 def _plan_for_segment(plan, segment_number: int):
@@ -496,6 +744,86 @@ def _prepare_timeline_segments(source):
         "second_pass_model": str(source["timeline"].get("secondPassModel") or ""),
         "second_pass_high_steps": source["timeline"].get("secondPassHighSteps"),
     }
+
+
+def _selflift_window_limit(total_memory_bytes: int) -> int:
+    gib = 1024 ** 3
+    if total_memory_bytes < 10 * gib:
+        return 56
+    if total_memory_bytes < 14 * gib:
+        return 124
+    return 209
+
+
+def _split_long_single_selflift_plan(finite: dict, max_window_frames: int) -> dict:
+    if finite.get("mode") != "single_segment" or not finite.get("second_pass"):
+        return finite
+    lengths = finite.get("segment_lengths") or []
+    total_frames = int(finite.get("target_output_frames") or (lengths[0] if lengths else 0))
+    max_window_frames = int(max_window_frames)
+    if total_frames <= max_window_frames:
+        return finite
+    if max_window_frames < 56 or (max_window_frames - 5) % 17:
+        raise ValueError("SelfLift internal window size must be H3-aligned and at least 56 frames")
+
+    base_plan = _finite_plan_for_segment(finite, 1)
+    selection = base_plan["timeline"].get("selection") or {}
+    selection_start = max(0.0, float(selection.get("start") or 0.0))
+    overlap_frames = 22
+    shot_aligned_windows = _selflift_shot_aligned_windows(
+        finite, max_window_frames, overlap_frames
+    )
+    if shot_aligned_windows is not None:
+        windows = shot_aligned_windows
+    else:
+        windows = []
+        start = 0
+        while total_frames - start > max_window_frames:
+            end = start + max_window_frames
+            windows.append((start, end))
+            start = end - overlap_frames
+            if len(windows) >= 64:
+                raise ValueError(
+                    "This SelfLift duration requires more than 64 internal windows; "
+                    "reduce the duration or create explicit storyboard segments."
+                )
+        windows.append((start, total_frames))
+
+    plans = []
+    for window_start, window_end in windows:
+        window_length = window_end - window_start
+        if window_length < 5 or (window_length - 5) % 17:
+            raise ValueError(
+                f"SelfLift internal window {window_start}-{window_end} is not H3 frame-aligned"
+            )
+        plan = copy.deepcopy(base_plan)
+        plan["timeline"]["selection"] = {
+            "start": selection_start + window_start / H3_FPS,
+            "duration": window_length / H3_FPS,
+        }
+        plan["timeline"]["segmentConfig"] = {"count": 0, "segments": []}
+        plan["generation_seconds"] = window_length / H3_FPS
+        plan["length"] = window_length
+        plan["selflift_window_start_seconds"] = window_start / H3_FPS
+        plans.append(plan)
+
+    overlaps = [0] + [overlap_frames] * (len(plans) - 1)
+    result = dict(finite)
+    result.update(
+        mode="selflift_internal_windows",
+        segment_count=len(plans),
+        segment_plans=plans,
+        prompts=[str(finite["prompts"][0])] * len(plans),
+        overlap_frames=sum(overlaps),
+        segment_overlaps=overlaps,
+        segment_lengths=[end - start for start, end in windows],
+        target_output_frames=total_frames,
+        selflift_aligned_cut_frames=(
+            [end for _, end in windows[:-1]]
+            if shot_aligned_windows is not None else []
+        ),
+    )
+    return result
 
 
 def _require_finite_plan(value):
@@ -829,7 +1157,7 @@ class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
         trim_frames = 0 if int(iteration) <= 0 or int(overlap_frames) == 0 else _valid_guide_frames(int(overlap_frames))
         if images.shape[0] <= trim_frames:
             raise ValueError(f"This segment has only {images.shape[0]} frames; cannot remove a {trim_frames}-frame overlap")
-        trimmed_images = images[trim_frames:].clone() if trim_frames else images
+        trimmed_images = images[trim_frames:]
         if accumulated_images is not None:
             # The preceding segment owns the visual overlap. Preserve its
             # decoded tail and discard the duplicate opening interval from the
@@ -862,6 +1190,172 @@ class MiniMaxH3FiniteSegmentFinalize(io.ComfyNode):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         return io.NodeOutput(sampled_latent, trimmed_images, trimmed_audio)
+
+
+class MiniMaxH3FiniteImageJoin(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        image_inputs = io.Autogrow.TemplatePrefix(
+            io.Image.Input("image"), prefix="image", min=1, max=64,
+        )
+        return io.Schema(
+            node_id="UniversalH3FiniteImageJoin",
+            display_name="MiniMax H3 Join Segment Frames (Internal)",
+            category="MiniMax H3/Internal",
+            is_dev_only=True,
+            inputs=[io.Autogrow.Input("images", template=image_inputs)],
+            outputs=[io.Image.Output(display_name="Merged Frames")],
+        )
+
+    @classmethod
+    def execute(cls, images=None, **image_inputs):
+        if images is not None:
+            if not isinstance(images, dict):
+                raise ValueError("The images input must be a mapping of dynamic image slots")
+            duplicate_names = images.keys() & image_inputs.keys()
+            if duplicate_names:
+                raise ValueError(
+                    f"Image inputs were supplied more than once: {sorted(duplicate_names)}"
+                )
+            image_inputs = {**images, **image_inputs}
+
+        indexed_chunks = []
+        for name, chunk in image_inputs.items():
+            suffix = name.removeprefix("image")
+            if not name.startswith("image") or not suffix.isdigit():
+                raise ValueError(f"Unexpected image input name: {name}")
+            indexed_chunks.append((int(suffix), chunk))
+        indexed_chunks.sort(key=lambda item: item[0])
+        if not indexed_chunks:
+            raise ValueError("At least one decoded frame segment is required")
+        chunks = [chunk for _, chunk in indexed_chunks]
+        started = _timing_now()
+        joined = torch.cat(chunks, dim=0)
+        logging.info(
+            "【UniversalDirectorConsole Timing】Final frame join: %d window(s), %d frame(s), %.3fs",
+            len(chunks),
+            joined.shape[0],
+            _timing_now() - started,
+        )
+        return io.NodeOutput(joined)
+
+
+class MiniMaxH3FiniteStageTimerStart(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UniversalH3FiniteStageTimerStart",
+            display_name="MiniMax H3 Stage Timer Start (Internal)",
+            category="MiniMax H3/Internal",
+            is_dev_only=True,
+            inputs=[
+                io.Latent.Input("samples"),
+                io.String.Input("stage", force_input=True),
+            ],
+            outputs=[
+                io.Latent.Output(display_name="Samples"),
+                io.Float.Output(display_name="Started At"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, samples, stage):
+        return io.NodeOutput(samples, _timing_now())
+
+
+class MiniMaxH3FiniteStageTimerFinish(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UniversalH3FiniteStageTimerFinish",
+            display_name="MiniMax H3 Stage Timer Finish (Internal)",
+            category="MiniMax H3/Internal",
+            is_dev_only=True,
+            inputs=[
+                io.Latent.Input("samples"),
+                io.Float.Input("started_at", force_input=True),
+                io.String.Input("stage", force_input=True),
+            ],
+            outputs=[io.Latent.Output(display_name="Samples")],
+        )
+
+    @classmethod
+    def execute(cls, samples, started_at, stage):
+        elapsed = _timing_now() - float(started_at)
+        logging.info("【UniversalDirectorConsole Timing】%s: %.3fs", stage, elapsed)
+        return io.NodeOutput(samples)
+
+
+class MiniMaxH3FiniteDecodeAudio(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UniversalH3FiniteDecodeAudio",
+            display_name="MiniMax H3 Decode Audio (Internal)",
+            category="MiniMax H3/Internal",
+            is_dev_only=True,
+            inputs=[
+                io.Latent.Input("samples"),
+                io.Vae.Input("vae"),
+            ],
+            outputs=[io.Audio.Output()],
+        )
+
+    @classmethod
+    def execute(cls, samples, vae):
+        from comfy_extras.nodes_audio import vae_decode_audio
+
+        started = _timing_now()
+        audio = vae_decode_audio(vae, samples)
+        elapsed = _timing_now() - started
+        waveform = audio.get("waveform")
+        duration = (
+            waveform.shape[-1] / int(audio["sample_rate"])
+            if waveform is not None and int(audio.get("sample_rate", 0)) > 0
+            else 0.0
+        )
+        logging.info(
+            "【UniversalDirectorConsole Timing】Audio VAE decode: %.2fs, %.3fs",
+            duration,
+            elapsed,
+        )
+        return io.NodeOutput(audio)
+
+
+class MiniMaxH3FiniteDecodeTiledHalf(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="UniversalH3FiniteDecodeTiledHalf",
+            display_name="MiniMax H3 Decode Segment Frames (Internal)",
+            category="MiniMax H3/Internal",
+            is_dev_only=True,
+            inputs=[
+                io.Latent.Input("samples"),
+                io.Vae.Input("vae"),
+                io.Int.Input("tile_size", default=512),
+                io.Int.Input("overlap", default=64),
+                io.Int.Input("temporal_size", default=64),
+                io.Int.Input("temporal_overlap", default=8),
+            ],
+            outputs=[io.Image.Output(display_name="Decoded Frames")],
+        )
+
+    @classmethod
+    def execute(cls, samples, vae, tile_size=512, overlap=64,
+                temporal_size=64, temporal_overlap=8):
+        import nodes
+
+        started = _timing_now()
+        decoded = nodes.VAEDecodeTiled().decode(
+            vae, samples, tile_size, overlap, temporal_size, temporal_overlap,
+        )[0]
+        logging.info(
+            "【UniversalDirectorConsole Timing】VAE decode: %d frame(s), %.3fs",
+            decoded.shape[0],
+            _timing_now() - started,
+        )
+        return io.NodeOutput(decoded.to(dtype=torch.float16))
 
 
 class MiniMaxH3FiniteAudioTrimTail(io.ComfyNode):
@@ -924,7 +1418,7 @@ class MiniMaxH3FiniteOutputTrim(io.ComfyNode):
                 f"Generated output has only {images.shape[0]} frames; "
                 f"cannot restore a {frame_count}-frame source duration"
             )
-        trimmed_images = images[:frame_count].clone()
+        trimmed_images = images if int(images.shape[0]) == frame_count else images[:frame_count].clone()
         trimmed_audio = audio
         waveform = audio.get("waveform") if isinstance(audio, dict) else None
         sample_rate = int(audio.get("sample_rate", 0)) if isinstance(audio, dict) else 0
@@ -933,6 +1427,17 @@ class MiniMaxH3FiniteOutputTrim(io.ComfyNode):
             if waveform.shape[-1] > output_samples:
                 trimmed_audio = dict(audio)
                 trimmed_audio["waveform"] = waveform[..., :output_samples].clone()
+                waveform = trimmed_audio["waveform"]
+            audio_stats = waveform.float()
+            audio_rms = float(audio_stats.square().mean().sqrt().item())
+            audio_peak = float(audio_stats.abs().max().item())
+            logging.info(
+                "【UniversalDirectorConsole】Audio output: %.2fs at %d Hz, RMS=%.6f, peak=%.6f",
+                waveform.shape[-1] / sample_rate,
+                sample_rate,
+                audio_rms,
+                audio_peak,
+            )
         return io.NodeOutput(trimmed_images, trimmed_audio)
 
 
@@ -1336,6 +1841,7 @@ class UniversalSegmentSampler(io.ComfyNode):
         refine_scale=0.5, refine_tile_count=1, refine_tile_overlap=64,
         refine_chunk_frames=24, refine_chunk_overlap=8,
         vram_tier="normal",
+        tile_overlap_patches=0,
         refine_width=None, refine_height=None,
     ):
         from . import inject_internal_nodes
@@ -1385,11 +1891,41 @@ class UniversalSegmentSampler(io.ComfyNode):
         sampler = KSamplerSelect().get_sampler(sampler_name)[0]
         sigmas = BasicScheduler().get_sigmas(model, scheduler, steps, denoise)[0]
         finite = _require_finite_plan(finite_plan)
+        if (
+            exec_mode == "full"
+            and second_pass_mode == "selflift"
+            and finite.get("mode") == "single_segment"
+            and finite.get("second_pass")
+        ):
+            from comfy import model_management
+
+            total_memory = int(model_management.get_total_memory(model.load_device))
+            window_limit = _selflift_window_limit(total_memory)
+            original_count = int(finite["segment_count"])
+            finite = _split_long_single_selflift_plan(finite, window_limit)
+            aligned_cuts = finite.get("selflift_aligned_cut_frames") or []
+            if finite["segment_count"] != original_count:
+                cut_status = (
+                    "，分镜对齐切点 " + "、".join(map(str, aligned_cuts)) + " 帧"
+                    if aligned_cuts else ""
+                )
+                logging.info(
+                    "【UniversalDirectorConsole】SelfLift 长单段自动分窗：%d 帧 → %d 个窗口，"
+                    "窗口上限 %d 帧，重叠 %d 帧%s，GPU 总显存 %.1f GiB",
+                    int(finite["target_output_frames"]),
+                    int(finite["segment_count"]),
+                    window_limit,
+                    22,
+                    cut_status,
+                    total_memory / (1024 ** 3),
+                )
         graph = GraphBuilder()
         previous_latent = None
         previous_images = None
         merged_images = None
         merged_audio = None
+        image_chunks = []
+        defer_image_join = finite.get("mode") == "selflift_internal_windows"
         last_sampled = None
         overlap = int(finite["overlap_frames"])
         locked_audio = _finite_locked_audio_asset(finite)
@@ -1430,6 +1966,64 @@ class UniversalSegmentSampler(io.ComfyNode):
             number = index + 1
             overlap = int(finite.get("segment_overlaps", [overlap] * finite["segment_count"])[index])
             segment_plan = _finite_plan_for_segment(finite, number)
+            internal_window = finite.get("mode") == "selflift_internal_windows"
+            window_seed = int(seed)
+            if internal_window:
+                window_seed = (window_seed + index) % (1 << 64)
+                timeline_start = float(
+                    segment_plan.get("selflift_window_start_seconds") or 0.0
+                )
+                timeline_end = timeline_start + float(
+                    segment_plan.get("generation_seconds") or 0.0
+                )
+                prompt, selected_shots = _crop_prompt_to_timeline_window(
+                    prompt,
+                    timeline_start,
+                    timeline_end,
+                    overlap,
+                    continuation=index > 0,
+                )
+                if selected_shots is not None:
+                    logging.info(
+                        "【UniversalDirectorConsole】SelfLift 窗口 %d/%d："
+                        "按本窗口时间裁切提示词，保留 %d 个镜头",
+                        number,
+                        finite["segment_count"],
+                        selected_shots,
+                    )
+                else:
+                    logging.warning(
+                        "【UniversalDirectorConsole】SelfLift 窗口 %d/%d："
+                        "提示词没有可按时间裁切的 [Shot N]，将沿用完整提示词",
+                        number,
+                        finite["segment_count"],
+                    )
+                if index > 0:
+                    prompt, injected = _inject_continuity_instruction(
+                        prompt,
+                        overlap,
+                        (timeline_start, timeline_end),
+                    )
+                    if not injected:
+                        prompt = (
+                            f"{prompt.rstrip()}\n\n"
+                            f"This is a later window in one continuous video, covering "
+                            f"global time {timeline_start:.2f}-{timeline_end:.2f} seconds. "
+                            "Continue the action at this point in the supplied timeline. "
+                            "Do not restart the opening or repeat actions completed before "
+                            "this window. The opening overlap continues from the preceding "
+                            "window; then advance to the next not-yet-completed action."
+                        )
+                logging.info(
+                    "【UniversalDirectorConsole】SelfLift 窗口 %d/%d："
+                    "全局时间 %.2f-%.2f 秒，%sseed=%d",
+                    number,
+                    finite["segment_count"],
+                    timeline_start,
+                    timeline_end,
+                    "承接前一窗，" if index > 0 else "",
+                    window_seed,
+                )
             
             # 1. 构建编码器（完全保留参考图，防止 H3 内部序列长度错乱引发巨量广播）
             encoder = graph.node(
@@ -1441,6 +2035,11 @@ class UniversalSegmentSampler(io.ComfyNode):
             )
 
             # 2. 一采或读缓存
+            window_label = (
+                f"窗口 {number}/{finite['segment_count']}"
+                if finite.get("mode") == "selflift_internal_windows"
+                else f"段 {number}"
+            )
             if exec_mode == "pass2":
                 logging.info(f"【UniversalDirectorConsole】ExecMode: Pass2 Only. Loading latent for segment {number}")
                 sampled = graph.node(
@@ -1466,6 +2065,18 @@ class UniversalSegmentSampler(io.ComfyNode):
                 )
                 sampling_latent = continuation.out(1)
                 active_model = continuation.out(3)
+                first_pass_label = (
+                    f"{window_label} SelfLift 总计"
+                    if second_pass and second_pass_mode == "selflift"
+                    else f"{window_label} 一采"
+                )
+                first_pass_timer = graph.node(
+                    "UniversalH3FiniteStageTimerStart",
+                    id=f"start_first_pass_timer_{number}",
+                    samples=sampling_latent,
+                    stage=first_pass_label,
+                )
+                sampling_latent = first_pass_timer.out(0)
 
                 if second_pass and second_pass_mode == "selflift":
                     logging.info(
@@ -1480,7 +2091,10 @@ class UniversalSegmentSampler(io.ComfyNode):
                         model=active_model, positive=continuation.out(0),
                         negative=continuation.out(0), vae=vae,
                         latent_image=sampling_latent, sampler=sampler, sigmas=sigmas,
-                        seed=int(seed), cfg=1.0, **selflift_settings,
+                        seed=window_seed, cfg=1.0, highres_tiling=True,
+                        tile_overlap_patches=int(tile_overlap_patches),
+                        timing_label=window_label,
+                        **selflift_settings,
                     )
                 else:
                     noise = graph.node("RandomNoise", id=f"noise_{number}", noise_seed=int(seed))
@@ -1493,14 +2107,21 @@ class UniversalSegmentSampler(io.ComfyNode):
                         guider=guider.out(0), sampler=sampler, sigmas=sigmas,
                         latent_image=sampling_latent,
                     )
-                    
-                    if exec_mode == "pass1":
-                        logging.info(f"【UniversalDirectorConsole】ExecMode: Pass1 Only. Saving latent for segment {number}")
-                        graph.node(
-                            "UniversalSaveLatent", id=f"save_cache_{number}",
-                            samples=sampled.out(0),
-                            filename_prefix=f"universal_cache_seg_{number}"
-                        )
+                sampled = graph.node(
+                    "UniversalH3FiniteStageTimerFinish",
+                    id=f"finish_first_pass_timer_{number}",
+                    samples=sampled.out(0),
+                    started_at=first_pass_timer.out(1),
+                    stage=first_pass_label,
+                )
+
+                if exec_mode == "pass1":
+                    logging.info(f"【UniversalDirectorConsole】ExecMode: Pass1 Only. Saving latent for segment {number}")
+                    graph.node(
+                        "UniversalSaveLatent", id=f"save_cache_{number}",
+                        samples=sampled.out(0),
+                        filename_prefix=f"universal_cache_seg_{number}"
+                    )
 
             # 3. 二采精修阶段
             continuation_latent = sampled.out(0)
@@ -1518,10 +2139,17 @@ class UniversalSegmentSampler(io.ComfyNode):
                     target_w,
                     target_h,
                 )
+                refine_stage_label = f"{window_label} 二采"
+                refine_timer = graph.node(
+                    "UniversalH3FiniteStageTimerStart",
+                    id=f"start_refine_timer_{number}",
+                    samples=sampled.out(0),
+                    stage=refine_stage_label,
+                )
                 upscaled = graph.node(
                     "UniversalH3LatentUpscale",
                     id=f"upscale_{number}",
-                    samples=sampled.out(0),
+                    samples=refine_timer.out(0),
                     width=target_w,
                     height=target_h,
                     upscaler_model=str(finite.get("second_pass_model") or ""),
@@ -1532,7 +2160,11 @@ class UniversalSegmentSampler(io.ComfyNode):
 
                 refine_steps = int(second_pass_high_steps) if second_pass_high_steps > 0 else 3
                 refine_sigmas = BasicScheduler().get_sigmas(model, "simple", refine_steps, 0.5)[0]
-                noise2 = graph.node("RandomNoise", id=f"noise2_{number}", noise_seed=int(seed) + 1)
+                noise2 = graph.node(
+                    "RandomNoise",
+                    id=f"noise2_{number}",
+                    noise_seed=(window_seed + 1) % (1 << 64),
+                )
                 guider2 = graph.node(
                     "BasicGuider",
                     id=f"guider2_{number}",
@@ -1548,20 +2180,38 @@ class UniversalSegmentSampler(io.ComfyNode):
                     sigmas=refine_sigmas,
                     latent_image=upscaled.out(0),
                 )
+                sampled = graph.node(
+                    "UniversalH3FiniteStageTimerFinish",
+                    id=f"finish_refine_timer_{number}",
+                    samples=sampled.out(0),
+                    started_at=refine_timer.out(1),
+                    stage=refine_stage_label,
+                )
 
             # 4. 解码与合并
             _seg_frames = int(finite.get("segment_lengths", [0])[index]) if finite.get("segment_lengths") else 0
             _temporal_overlap = min(8, max(1, _seg_frames // 4)) if _seg_frames > 0 else 8
-            images = graph.node(
-                "VAEDecodeTiled", id=f"decode_video_{number}", samples=sampled.out(0), vae=vae,
-                tile_size=512, overlap=64, temporal_size=64, temporal_overlap=_temporal_overlap,
-            )
+            if defer_image_join:
+                images = graph.node(
+                    "UniversalH3FiniteDecodeTiledHalf", id=f"decode_video_{number}",
+                    samples=sampled.out(0), vae=vae,
+                    tile_size=512, overlap=64, temporal_size=64,
+                    temporal_overlap=_temporal_overlap,
+                )
+            else:
+                images = graph.node(
+                    "VAEDecodeTiled", id=f"decode_video_{number}", samples=sampled.out(0), vae=vae,
+                    tile_size=512, overlap=64, temporal_size=64, temporal_overlap=_temporal_overlap,
+                )
             audio = graph.node(
-                "VAEDecodeAudio", id=f"decode_audio_{number}", samples=sampled.out(0), vae=audio_vae,
+                "UniversalH3FiniteDecodeAudio",
+                id=f"decode_audio_{number}",
+                samples=sampled.out(0),
+                vae=audio_vae,
             )
             
             finalize_inputs = {}
-            if merged_images is not None:
+            if merged_images is not None and not defer_image_join:
                 finalize_inputs["accumulated_images"] = merged_images
             finalized = graph.node(
                 "UniversalH3FiniteSegmentFinalize", id=f"finalize_{number}",
@@ -1571,7 +2221,23 @@ class UniversalSegmentSampler(io.ComfyNode):
                 **finalize_inputs,
             )
             current_images, current_audio = finalized.out(1), finalized.out(2)
-            if merged_images is None:
+            if defer_image_join:
+                image_chunks.append(current_images)
+                if merged_audio is None:
+                    merged_audio = current_audio
+                else:
+                    previous_audio_for_join = merged_audio
+                    if soft_audio and overlap > 0:
+                        previous_audio_for_join = graph.node(
+                            "UniversalH3FiniteAudioTrimTail", id=f"trim_audio_tail_{number}",
+                            audio=merged_audio, overlap_frames=overlap,
+                        ).out(0)
+                    audio_join = graph.node(
+                        "AudioConcat", id=f"join_audio_{number}",
+                        audio1=previous_audio_for_join, audio2=current_audio, direction="after",
+                    )
+                    merged_audio = audio_join.out(0)
+            elif merged_images is None:
                 merged_images, merged_audio = current_images, current_audio
             else:
                 previous_audio_for_join = merged_audio
@@ -1594,6 +2260,13 @@ class UniversalSegmentSampler(io.ComfyNode):
             )
             previous_images = images.out(0)
             last_sampled = sampled.out(0)
+
+        if defer_image_join:
+            merged_images = graph.node(
+                "UniversalH3FiniteImageJoin",
+                id="join_internal_window_images",
+                **{f"image{index}": chunk for index, chunk in enumerate(image_chunks)},
+            ).out(0)
 
         target_output_frames = int(finite.get("target_output_frames") or 0)
         if target_output_frames > 0 and exec_mode != "pass1":
@@ -1635,7 +2308,14 @@ class UniversalSegmentSampler(io.ComfyNode):
             f"all segments use seed {int(seed)}; {mode_status}; "
             f"audio latent {'is locked to the source' if locked_audio is not None else ('is fixed to silence' if muted_video_audio else ('continues' if continue_audio_latent else 'does not continue'))}."
         )
-        if finite.get("mode") == "timeline_segments":
+        if finite.get("mode") == "selflift_internal_windows":
+            status = (
+                f"SelfLift automatically sampled one long segment as {finite['segment_count']} "
+                f"overlapping windows; lengths={finite['segment_lengths']}, "
+                f"seam overlaps={finite['segment_overlaps']}; output duration "
+                f"{target_output_frames} frames. {mode_status}."
+            )
+        elif finite.get("mode") == "timeline_segments":
             status = (
                 f"Sampled {finite['segment_count']} timeline windows; lengths={finite['segment_lengths']}; "
                 f"seam overlaps={finite['segment_overlaps']}. Zero-overlap seams are generated "

@@ -576,6 +576,20 @@ function createPanel(node) {
     const spStepsInput = make("input"); 
     spStepsInput.type = "number"; spStepsInput.value = "2"; spStepsInput.className = "ghupo-duration-input"; spStepsInput.style.width = "44px";
 
+    const tileOverlapSelect = make("select");
+    tileOverlapSelect.className = "ghupo-duration-input";
+    tileOverlapSelect.title = "降低重叠可能加快二采，但可能增加 tile 接缝；自动模式沿用启动设置（默认 4）";
+    tileOverlapSelect.innerHTML = `
+        <option value="0">自动（启动设置，默认 4）</option>
+        <option value="1">1 patch（实验）</option>
+        <option value="2">2 patch</option>
+        <option value="4">4 patch</option>
+    `;
+    tileOverlapSelect.value = "0";
+    const tileOverlapRow = make("div");
+    tileOverlapRow.className = "ghupo-refine-mp";
+    tileOverlapRow.append(make("span", {}, "SelfLift切片重叠"), tileOverlapSelect);
+
     // 构建独立面板
     const dirAdvancedPanel = make("details");
     dirAdvancedPanel.className = "ghupo-advanced";
@@ -687,16 +701,18 @@ function createPanel(node) {
     upscaleSection.className = "ghupo-advanced-section ghupo-upscale-section";
     const upscaleTitle = make("div", {}, "二采");
     upscaleTitle.className = "ghupo-advanced-section-title";
-    upscaleSection.append(upscaleTitle, spRow, spModelRow);
+    upscaleSection.append(upscaleTitle, spRow, spModelRow, tileOverlapRow);
 
     const updateSplitRunControls = () => {
         const isRefine = spCheck.checked && spModeSelect.value === "refine";
+        const isSelfLift = spCheck.checked && spModeSelect.value === "selflift";
         dirAdvancedStatus.textContent = spCheck.checked
             ? `二采已开启 · ${spModeSelect.value === "refine" ? "Refine" : "SelfLift"}`
             : "二采关闭";
         splitRunCheck.disabled = !isRefine;
         if (!isRefine) splitRunCheck.checked = false;
         refineControls.style.display = isRefine ? "flex" : "none";
+        tileOverlapRow.style.display = isSelfLift ? "flex" : "none";
         splitStageSelect.style.display = isRefine && splitRunCheck.checked ? "" : "none";
         const refineDimensions = calcDimensions(parseFloat(refineMPInput.value));
         refineResolutionLabel.textContent = `输出 ${refineDimensions.w}×${refineDimensions.h}`;
@@ -722,8 +738,10 @@ function createPanel(node) {
         mpInput,
         audioSelect,
         overlapInput,
+        tileOverlapSelect,
     ].forEach(control => {
         control.addEventListener("change", () => {
+            if (control === tileOverlapSelect && restoringState) restoringState = false;
             updateSplitRunControls();
             if (control === overlapInput && typeof renderStoryboard === "function") renderStoryboard();
             if (typeof persist === "function") persist();
@@ -1152,6 +1170,8 @@ function createPanel(node) {
     const promptWidget = widget(node, "prompt");
     hideWidget(promptWidget);
     hideWidget(widget(node, "gh_state_json"));
+    const tileOverlapWidget = widget(node, "tile_overlap_patches");
+    hideWidget(tileOverlapWidget);
     for (const name of ALL_SLOTS) hideWidget(widget(node, name));
 
     // ---- 双模式：原生 size 控件的显示/隐藏 ----
@@ -1285,6 +1305,7 @@ function createPanel(node) {
             dirSecondPassModel: spModelSelect.value,
             dirSecondPassSteps: parseInt(spStepsInput.value, 10) || 2,
             dirSecondPassMode: spModeSelect.value,
+            dirTileOverlapPatches: parseInt(tileOverlapSelect.value, 10) || 0,
             dirExecMode: selectedExecMode(),
             dirAudioMode: audioSelect.value,
             dirAdvancedOpen: dirAdvancedPanel.open,
@@ -1303,6 +1324,9 @@ function createPanel(node) {
         // widget.value 是 ComfyUI 官方主序列化路径 —— 必须写。
         const sw = widget(node, "gh_state_json");
         if (sw) sw.value = value;
+        if (tileOverlapWidget) {
+            tileOverlapWidget.value = parseInt(tileOverlapSelect.value, 10) || 0;
+        }
         // 【L2-c + 时长同步】总是生成 segments_json：
         // - 单段 / 多段统一处理
         // - duration 由万能节点主控（桥接器跟随时长）
@@ -4888,6 +4912,12 @@ function createPanel(node) {
                 }
                 if (restored.dirSecondPassSteps) spStepsInput.value = restored.dirSecondPassSteps;
                 if (restored.dirSecondPassMode) spModeSelect.value = restored.dirSecondPassMode;
+                const savedTileOverlap = restored.dirTileOverlapPatches !== undefined
+                    ? restored.dirTileOverlapPatches
+                    : tileOverlapWidget?.value;
+                if (savedTileOverlap !== undefined) {
+                    tileOverlapSelect.value = String(savedTileOverlap);
+                }
                 if (restored.dirAudioMode) audioSelect.value = restored.dirAudioMode;
                 if (restored.dirAdvancedOpen !== undefined) dirAdvancedPanel.open = !!restored.dirAdvancedOpen;
                 if (restored.dirOverlapEditMode !== undefined) setOverlapEditMode(!!restored.dirOverlapEditMode, false);
