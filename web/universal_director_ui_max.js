@@ -216,6 +216,8 @@ function createPanel(node) {
         .ghupo-upscale-mode{flex:1 1 120px;min-width:110px}
         .ghupo-upscale-steps{display:flex;align-items:center;gap:4px;white-space:nowrap}
         .ghupo-upscale-steps input{width:44px}
+        .ghupo-continuity-toggle{color:#45c9ef!important}
+        .ghupo-continuity-state{min-width:27px;color:#a9bac8;font-size:10px;font-weight:700}
         .ghupo-refine-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-height:36px;padding:6px 8px;border:1px solid rgba(10,164,214,.45);border-radius:5px;background:rgba(10,164,214,.07);box-sizing:border-box}
         .ghupo-refine-mp{display:flex;align-items:center;gap:4px;white-space:nowrap}
         .ghupo-refine-mp input{width:58px}
@@ -520,6 +522,42 @@ function createPanel(node) {
     
     // 【新增】一采步数
     const stepsInput = make("input"); stepsInput.type = "number"; stepsInput.value = "8"; stepsInput.className = "ghupo-duration-input"; stepsInput.style.width = "50px"; stepsInput.title = "一采步数";
+    const seedInput = make("input");
+    seedInput.type = "text";
+    seedInput.inputMode = "numeric";
+    seedInput.value = "0";
+    seedInput.maxLength = 20;
+    seedInput.className = "ghupo-duration-input";
+    seedInput.style.width = "112px";
+    seedInput.title = "生成随机种子（0 到 18446744073709551615）。相同提示词、参数和 seed 可用于复现结果。";
+    const randomSeedButton = make("button", {}, "🎲");
+    randomSeedButton.type = "button";
+    randomSeedButton.className = "ghupo-duration-btn";
+    randomSeedButton.title = "生成一个新的 64 位随机 seed";
+    const seedLabel = make("span", {}, "Seed");
+    const createRandomSeed = () => {
+        const words = new Uint32Array(2);
+        if (globalThis.crypto?.getRandomValues) {
+            globalThis.crypto.getRandomValues(words);
+        } else {
+            words[0] = Math.floor(Math.random() * 0x100000000);
+            words[1] = Math.floor(Math.random() * 0x100000000);
+        }
+        seedInput.value = (
+            (BigInt(words[0]) << 32n) | BigInt(words[1])
+        ).toString();
+        seedInput.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    randomSeedButton.addEventListener("click", createRandomSeed);
+    seedInput.addEventListener("input", () => {
+        const valid = /^\d{1,20}$/.test(seedInput.value)
+            && BigInt(seedInput.value) <= 18446744073709551615n;
+        seedInput.setCustomValidity(valid ? "" : "请输入 0 到 18446744073709551615 之间的整数");
+    });
+    seedInput.addEventListener("change", () => {
+        seedInput.reportValidity();
+        if (typeof persist === "function") persist();
+    });
     
     const OFFICIAL_16_9_DIMENSIONS = {
         "0.2": [608, 352],
@@ -557,7 +595,12 @@ function createPanel(node) {
     arSelect.onchange = () => { if (typeof persist === "function") persist(); };
     mpInput.onchange = () => { if (typeof persist === "function") persist(); };
 
-    dirSizeGroup.append(make("span", {}, "比例"), arSelect, make("span", {}, "百万像素MP"), mpInput, make("span", {}, "步数"), stepsInput);
+    dirSizeGroup.append(
+        make("span", {}, "比例"), arSelect,
+        make("span", {}, "百万像素MP"), mpInput,
+        make("span", {}, "步数"), stepsInput,
+        seedLabel, seedInput, randomSeedButton,
+    );
 
     // ---- 【Max专属】二采与音频独立面板 ----
     const audioSelect = make("select"); 
@@ -578,6 +621,9 @@ function createPanel(node) {
 
     const tileOverlapSelect = make("select");
     tileOverlapSelect.className = "ghupo-duration-input";
+    tileOverlapSelect.style.width = "250px";
+    tileOverlapSelect.style.minWidth = "250px";
+    tileOverlapSelect.style.flex = "0 0 250px";
     tileOverlapSelect.title = "降低重叠可能加快二采，但可能增加 tile 接缝；自动模式沿用启动设置（默认 4）";
     tileOverlapSelect.innerHTML = `
         <option value="0">自动（启动设置，默认 4）</option>
@@ -589,6 +635,42 @@ function createPanel(node) {
     const tileOverlapRow = make("div");
     tileOverlapRow.className = "ghupo-refine-mp";
     tileOverlapRow.append(make("span", {}, "SelfLift切片重叠"), tileOverlapSelect);
+    const storyContinuityInput = make("input");
+    storyContinuityInput.type = "checkbox";
+    storyContinuityInput.checked = true;
+    storyContinuityInput.style.margin = "0";
+    const storyContinuityState = make("span", {}, "ON");
+    storyContinuityState.className = "ghupo-continuity-state";
+    const storyContinuityToggle = make("label");
+    storyContinuityToggle.className = "ghupo-split-toggle ghupo-continuity-toggle";
+    storyContinuityToggle.title = "低显存（低于 14 GiB）多窗口：ON 使用 5 帧重叠，OFF 使用 22 帧；16 GiB 及以上维持原有 22 帧策略。";
+    storyContinuityToggle.append(
+        storyContinuityInput,
+        make("span", {}, "故事连续性"),
+        storyContinuityState,
+    );
+    const continuationTailFrameGuideInput = make("input");
+    continuationTailFrameGuideInput.type = "checkbox";
+    continuationTailFrameGuideInput.checked = false;
+    continuationTailFrameGuideInput.style.margin = "0";
+    const continuationTailFrameGuideToggle = make("label");
+    continuationTailFrameGuideToggle.className = "ghupo-split-toggle ghupo-continuity-toggle";
+    continuationTailFrameGuideToggle.title = "实验功能：后续窗口使用前一窗口最后一帧作为 H3 起始状态参考，帮助保持人物、服装、场景和镜头状态。";
+    continuationTailFrameGuideToggle.append(
+        continuationTailFrameGuideInput,
+        make("span", {}, "尾帧状态参考"),
+    );
+    const continuationStateSummaryInput = make("input");
+    continuationStateSummaryInput.type = "checkbox";
+    continuationStateSummaryInput.checked = false;
+    continuationStateSummaryInput.style.margin = "0";
+    const continuationStateSummaryToggle = make("label");
+    continuationStateSummaryToggle.className = "ghupo-split-toggle ghupo-continuity-toggle";
+    continuationStateSummaryToggle.title = "实验功能：后续窗口附带已完成 Shot 的状态清单，仅用于保持剧情状态，明确禁止重演。";
+    continuationStateSummaryToggle.append(
+        continuationStateSummaryInput,
+        make("span", {}, "已完成Shot状态"),
+    );
 
     // 构建独立面板
     const dirAdvancedPanel = make("details");
@@ -701,7 +783,15 @@ function createPanel(node) {
     upscaleSection.className = "ghupo-advanced-section ghupo-upscale-section";
     const upscaleTitle = make("div", {}, "二采");
     upscaleTitle.className = "ghupo-advanced-section-title";
-    upscaleSection.append(upscaleTitle, spRow, spModelRow, tileOverlapRow);
+    upscaleSection.append(
+        upscaleTitle,
+        spRow,
+        spModelRow,
+        tileOverlapRow,
+        storyContinuityToggle,
+        continuationTailFrameGuideToggle,
+        continuationStateSummaryToggle,
+    );
 
     const updateSplitRunControls = () => {
         const isRefine = spCheck.checked && spModeSelect.value === "refine";
@@ -713,6 +803,10 @@ function createPanel(node) {
         if (!isRefine) splitRunCheck.checked = false;
         refineControls.style.display = isRefine ? "flex" : "none";
         tileOverlapRow.style.display = isSelfLift ? "flex" : "none";
+        storyContinuityToggle.style.display = isSelfLift ? "flex" : "none";
+        continuationTailFrameGuideToggle.style.display = isSelfLift ? "flex" : "none";
+        continuationStateSummaryToggle.style.display = isSelfLift ? "flex" : "none";
+        storyContinuityState.textContent = storyContinuityInput.checked ? "ON" : "OFF";
         splitStageSelect.style.display = isRefine && splitRunCheck.checked ? "" : "none";
         const refineDimensions = calcDimensions(parseFloat(refineMPInput.value));
         refineResolutionLabel.textContent = `输出 ${refineDimensions.w}×${refineDimensions.h}`;
@@ -731,6 +825,7 @@ function createPanel(node) {
         spModeSelect,
         spModelSelect,
         spStepsInput,
+        seedInput,
         splitRunCheck,
         splitStageSelect,
         refineMPInput,
@@ -739,9 +834,13 @@ function createPanel(node) {
         audioSelect,
         overlapInput,
         tileOverlapSelect,
+        storyContinuityInput,
+        continuationTailFrameGuideInput,
+        continuationStateSummaryInput,
     ].forEach(control => {
         control.addEventListener("change", () => {
             if (control === tileOverlapSelect && restoringState) restoringState = false;
+            if (control === storyContinuityInput && restoringState) restoringState = false;
             updateSplitRunControls();
             if (control === overlapInput && typeof renderStoryboard === "function") renderStoryboard();
             if (typeof persist === "function") persist();
@@ -1172,6 +1271,8 @@ function createPanel(node) {
     hideWidget(widget(node, "gh_state_json"));
     const tileOverlapWidget = widget(node, "tile_overlap_patches");
     hideWidget(tileOverlapWidget);
+    const lowVramWindowOverlapWidget = widget(node, "low_vram_window_overlap_frames");
+    hideWidget(lowVramWindowOverlapWidget);
     for (const name of ALL_SLOTS) hideWidget(widget(node, name));
 
     // ---- 双模式：原生 size 控件的显示/隐藏 ----
@@ -1301,11 +1402,15 @@ function createPanel(node) {
             dirRefineWidth: calcDimensions(parseFloat(refineMPInput.value)).w,
             dirRefineHeight: calcDimensions(parseFloat(refineMPInput.value)).h,
             dirSteps: parseInt(stepsInput.value, 10) || 8,
+            dirSeed: seedInput.value,
             dirSecondPass: spCheck.checked,
             dirSecondPassModel: spModelSelect.value,
             dirSecondPassSteps: parseInt(spStepsInput.value, 10) || 2,
             dirSecondPassMode: spModeSelect.value,
             dirTileOverlapPatches: parseInt(tileOverlapSelect.value, 10) || 0,
+            dirStoryContinuity: storyContinuityInput.checked,
+            dirContinuationTailFrameGuide: continuationTailFrameGuideInput.checked,
+            dirContinuationStateSummary: continuationStateSummaryInput.checked,
             dirExecMode: selectedExecMode(),
             dirAudioMode: audioSelect.value,
             dirAdvancedOpen: dirAdvancedPanel.open,
@@ -1326,6 +1431,9 @@ function createPanel(node) {
         if (sw) sw.value = value;
         if (tileOverlapWidget) {
             tileOverlapWidget.value = parseInt(tileOverlapSelect.value, 10) || 0;
+        }
+        if (lowVramWindowOverlapWidget) {
+            lowVramWindowOverlapWidget.value = storyContinuityInput.checked ? 5 : 22;
         }
         // 【L2-c + 时长同步】总是生成 segments_json：
         // - 单段 / 多段统一处理
@@ -4902,6 +5010,7 @@ function createPanel(node) {
                 if (restored.dirMP) mpInput.value = restored.dirMP;
                 refineMPInput.value = restored.dirRefineMP || mpInput.value;
                 if (restored.dirSteps) stepsInput.value = restored.dirSteps;
+                if (restored.dirSeed !== undefined) seedInput.value = String(restored.dirSeed);
                 if (restored.dirSecondPass !== undefined) spCheck.checked = restored.dirSecondPass;
                 if (restored.dirSecondPassModel) spModelSelect.value = restored.dirSecondPassModel;
                 if (restored.dirExecMode === "pass1" || restored.dirExecMode === "pass2") {
@@ -4917,6 +5026,15 @@ function createPanel(node) {
                     : tileOverlapWidget?.value;
                 if (savedTileOverlap !== undefined) {
                     tileOverlapSelect.value = String(savedTileOverlap);
+                }
+                if (restored.dirStoryContinuity !== undefined) {
+                    storyContinuityInput.checked = !!restored.dirStoryContinuity;
+                }
+                if (restored.dirContinuationTailFrameGuide !== undefined) {
+                    continuationTailFrameGuideInput.checked = !!restored.dirContinuationTailFrameGuide;
+                }
+                if (restored.dirContinuationStateSummary !== undefined) {
+                    continuationStateSummaryInput.checked = !!restored.dirContinuationStateSummary;
                 }
                 if (restored.dirAudioMode) audioSelect.value = restored.dirAudioMode;
                 if (restored.dirAdvancedOpen !== undefined) dirAdvancedPanel.open = !!restored.dirAdvancedOpen;

@@ -1395,7 +1395,8 @@ def _execute_h3_independent_first(
     clip, vae, audio_vae, prompt: str, width: int, height: int, length: int,
     ref_image_size: str, ref_images: dict[str, torch.Tensor],
     ref_videos: dict[str, torch.Tensor], ref_video_audios: dict[str, dict[str, Any]],
-    ref_audios: dict[str, dict[str, Any]],
+    ref_audios: dict[str, dict[str, Any]], include_image_latent_refs: bool = True,
+    include_image_qwen_refs: bool = True,
 ) -> tuple[Any, Any]:
     """H3 Ref2VA with standalone Audio ordinals before paired video soundtracks.
 
@@ -1409,6 +1410,8 @@ def _execute_h3_independent_first(
     ref_blocks: list[dict[str, Any]] = []
 
     for image in (ref_images or {}).values():
+        if not include_image_latent_refs and not include_image_qwen_refs:
+            continue
         if image is None:
             continue
         image_height, image_width = image.shape[1], image.shape[2]
@@ -1425,12 +1428,14 @@ def _execute_h3_independent_first(
             round(image_height * scale / h3_nodes.CANVAS_MULTIPLE) * h3_nodes.CANVAS_MULTIPLE,
         )
         resized = h3_nodes._resize(image[:1], target_width, target_height, "disabled")
-        encoded = vae.encode(resized)
-        ref_items.append({"type": "image", "data": resized})
-        ref_blocks.append({
-            "kind": "image", "latent_h": target_height // 16,
-            "latent_w": target_width // 16, "latent": encoded,
-        })
+        if include_image_qwen_refs:
+            ref_items.append({"type": "image", "data": resized})
+        if include_image_latent_refs:
+            encoded = vae.encode(resized)
+            ref_blocks.append({
+                "kind": "image", "latent_h": target_height // 16,
+                "latent_w": target_width // 16, "latent": encoded,
+            })
 
     # Standalone references own Audio 1..N.
     for audio in (ref_audios or {}).values():
@@ -1546,7 +1551,9 @@ async def _request_json(request: web.Request) -> dict[str, Any]:
 
 
 def _encode_timeline_plan(
-    plan: dict[str, Any], clip, vae, audio_vae, prompt: str, ref_image_size: str
+    plan: dict[str, Any], clip, vae, audio_vae, prompt: str, ref_image_size: str,
+    include_image_latent_refs: bool = True, include_image_qwen_refs: bool = True,
+    continuation_frame: torch.Tensor | None = None,
 ) -> tuple[Any, Any, dict[str, Any], dict[str, Any]]:
     encode_started = time.perf_counter()
     plan = _require_timeline_plan(plan)
@@ -1575,10 +1582,47 @@ def _encode_timeline_plan(
             len(ref_videos),
             len(ref_images),
         )
+    if ref_images and not include_image_latent_refs and not include_image_qwen_refs:
+        log.info(
+            "Low-VRAM continuation window: reference images are omitted from both Qwen "
+            "visual context and image latent conditioning to prevent source-image reproduction."
+        )
+    elif ref_images and not include_image_latent_refs:
+        log.info(
+            "Low-VRAM continuation window: reference images remain in Qwen visual context, "
+            "image latent conditioning is disabled to prevent source-image reproduction."
+        )
+    elif ref_images and not include_image_qwen_refs:
+        log.info(
+            "Low-VRAM continuation window: reference images remain in image latent "
+            "conditioning, omitted from Qwen visual context."
+        )
     conditioning, latent = _execute_h3_independent_first(
         clip, vae, audio_vae, encoder_prompt, target_width, target_height, length,
         ref_image_size, ref_images, ref_videos, ref_video_audios, ref_audios,
+        include_image_latent_refs=include_image_latent_refs,
+        include_image_qwen_refs=include_image_qwen_refs,
     )
+    if continuation_frame is not None:
+        if not torch.is_tensor(continuation_frame):
+            raise ValueError(
+                "Continuation frame guide must resolve to a ComfyUI IMAGE tensor; "
+                f"got {type(continuation_frame).__name__}"
+            )
+        if continuation_frame.ndim != 4 or continuation_frame.shape[0] < 1:
+            raise ValueError(
+                "Continuation frame guide must be an IMAGE batch with at least one frame"
+            )
+        guides.insert(0, {
+            "image": continuation_frame[-1:],
+            "audio": None,
+            "frame_idx": 0,
+            "kind": "continuation-tail-frame",
+        })
+        log.info(
+            "Continuation tail-frame guide: anchoring the next window's opening frame "
+            "from the previous generated window."
+        )
     conditioning = _apply_h3_guides(conditioning, latent, vae, audio_vae, guides)
     if torch.cuda.is_available():
         torch.cuda.synchronize()
@@ -1923,6 +1967,21 @@ class UniversalH3TimelineEncoderWithRefMod(io.ComfyNode):
                 TimelinePlan.Input("plan"),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
                 io.Combo.Input("ref_image_size", options=["match", "max"], default="match"),
+                io.Boolean.Input(
+                    "include_image_latent_refs",
+                    default=True,
+                    tooltip="Keep H3 image-latent references enabled. Low-VRAM internal continuation windows may disable this to avoid reproducing source image layouts.",
+                ),
+                io.Boolean.Input(
+                    "include_image_qwen_refs",
+                    default=True,
+                    tooltip="Include reference images in Qwen visual context. Low-VRAM internal continuation windows may disable this to prevent source-image reproduction.",
+                ),
+                io.Image.Input(
+                    "continuation_frame",
+                    optional=True,
+                    tooltip="Previous generated window's final frame. Applied only as a native H3 opening guide, never as a user reference image.",
+                ),
                 io.Custom("H3_REF_MODS").Input("refmod_mods", optional=True),
             ],
             outputs=[
@@ -1934,12 +1993,19 @@ class UniversalH3TimelineEncoderWithRefMod(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip, vae, audio_vae, plan, prompt, ref_image_size="match", refmod_mods=None):
+    def execute(
+        cls, clip, vae, audio_vae, plan, prompt, ref_image_size="match",
+        include_image_latent_refs=True, include_image_qwen_refs=True,
+        continuation_frame=None, refmod_mods=None,
+    ):
         import math
         
         # 先调用原版获取基础数据
         conditioning, latent, video_audio, standalone_audio = _encode_timeline_plan(
-            plan, clip, vae, audio_vae, prompt, ref_image_size
+            plan, clip, vae, audio_vae, prompt, ref_image_size,
+            include_image_latent_refs=include_image_latent_refs,
+            include_image_qwen_refs=include_image_qwen_refs,
+            continuation_frame=continuation_frame,
         )
         
         if refmod_mods:

@@ -345,6 +345,26 @@ class UniversalDirectorUI(io.ComfyNode):
                     optional=True,
                     extra_dict={"hidden": True},
                 ),
+                io.Int.Input(
+                    "low_vram_window_overlap_frames",
+                    default=5,
+                    min=5,
+                    max=22,
+                    optional=True,
+                    extra_dict={"hidden": True},
+                ),
+                io.Boolean.Input(
+                    "continuation_tail_frame_guide",
+                    default=False,
+                    optional=True,
+                    extra_dict={"hidden": True},
+                ),
+                io.Boolean.Input(
+                    "continuation_state_summary",
+                    default=False,
+                    optional=True,
+                    extra_dict={"hidden": True},
+                ),
                 io.String.Input("segments_json", default="", optional=True, extra_dict={"hidden": True}),
             ],
             outputs=[
@@ -354,18 +374,26 @@ class UniversalDirectorUI(io.ComfyNode):
 
     @classmethod
     def execute(cls, clip=None, model=None, vae=None, audio_vae=None, width=1024, height=1024, resize_mode="cover",
-                                prompt="", gh_state_json="", segments_json="", tile_overlap_patches=0, **media):
+                                prompt="", gh_state_json="", segments_json="", tile_overlap_patches=0,
+                                low_vram_window_overlap_frames=5,
+                                continuation_tail_frame_guide=False,
+                                continuation_state_summary=False, **media):
         
         # 1. 获取宽高及高级参数
         _w, _h = width, height
         _refine_w, _refine_h = width, height
         _steps = 8
+        _raw_seed = None
+        _seed = 0
         _sp, _sp_model, _sp_steps, _sp_mode = False, "", 2, "selflift"
         _exec_mode = "full"
         _audio_mode = "参考音色"
         _save_prefix = "Universal_MiniMax_H3director/Universal_MiniMax_H3director"
         _bridge_overlaps = ""
         _tile_overlap_patches = int(tile_overlap_patches or 0)
+        _low_vram_window_overlap_frames = int(low_vram_window_overlap_frames or 5)
+        _continuation_tail_frame_guide = bool(continuation_tail_frame_guide)
+        _continuation_state_summary = bool(continuation_state_summary)
         _save_video = False  # 【修复】给个初始值，避免未定义报错
         try:
             if gh_state_json:
@@ -377,6 +405,7 @@ class UniversalDirectorUI(io.ComfyNode):
                 if "dirRefineHeight" in st: _refine_h = int(st["dirRefineHeight"])
                 else: _refine_h = _h
                 if "dirSteps" in st: _steps = int(st["dirSteps"])
+                if "dirSeed" in st: _raw_seed = st["dirSeed"]
                 if "dirSecondPass" in st: _sp = bool(st["dirSecondPass"])
                 if "dirSecondPassModel" in st: _sp_model = str(st["dirSecondPassModel"])
                 if "dirSecondPassSteps" in st: _sp_steps = int(st["dirSecondPassSteps"])
@@ -395,12 +424,43 @@ class UniversalDirectorUI(io.ComfyNode):
                             _tile_overlap_patches,
                         )
                     _tile_overlap_patches = state_tile_overlap
+                if "dirStoryContinuity" in st:
+                    _low_vram_window_overlap_frames = (
+                        5 if bool(st["dirStoryContinuity"]) else 22
+                    )
+                if "dirContinuationTailFrameGuide" in st:
+                    _continuation_tail_frame_guide = bool(
+                        st["dirContinuationTailFrameGuide"]
+                    )
+                if "dirContinuationStateSummary" in st:
+                    _continuation_state_summary = bool(
+                        st["dirContinuationStateSummary"]
+                    )
         except Exception as e:
             logging.warning(f"解析导演参数失败: {e}")
+
+        if _raw_seed is not None:
+            seed_text = str(_raw_seed)
+            if not seed_text.isdecimal():
+                raise ValueError("【导演台错误】Seed 必须是 0 到 18446744073709551615 之间的整数。")
+            _seed = int(seed_text)
+            if _seed > 0xFFFFFFFFFFFFFFFF:
+                raise ValueError("【导演台错误】Seed 超出 64 位无符号整数范围。")
 
         logging.info(
             "【UniversalDirectorConsole】SelfLift 切片重叠请求：%d（0=自动）",
             _tile_overlap_patches,
+        )
+        logging.info("【UniversalDirectorConsole】基础 Seed：%d", _seed)
+        logging.info(
+            "【UniversalDirectorConsole】故事连续性：%s（低显存窗口重叠 %d 帧）",
+            "ON" if _low_vram_window_overlap_frames == 5 else "OFF",
+            _low_vram_window_overlap_frames,
+        )
+        logging.info(
+            "【UniversalDirectorConsole】续窗实验：尾帧状态参考=%s，已完成 Shot 状态清单=%s",
+            "ON" if _continuation_tail_frame_guide else "OFF",
+            "ON" if _continuation_state_summary else "OFF",
         )
 
         # 2. 极简媒体打包（只提取路径，不加载图片 Tensor，极速！）
@@ -436,6 +496,7 @@ class UniversalDirectorUI(io.ComfyNode):
             model=model, clip=clip, vae=vae, audio_vae=audio_vae,
             media_bundle=media_bundle, prompt_finite=str(prompt or ""), segments_json=segments_json,
             width=_w, height=_h, steps=_steps,
+            seed=_seed,
             refine_width=_refine_w, refine_height=_refine_h,
             second_pass=_sp, 
             second_pass_model=_sp_model, 
@@ -447,6 +508,9 @@ class UniversalDirectorUI(io.ComfyNode):
             filename_prefix=_save_prefix,
             bridge_overlaps=_bridge_overlaps,
             tile_overlap_patches=_tile_overlap_patches,
+            low_vram_window_overlap_frames=_low_vram_window_overlap_frames,
+            continuation_tail_frame_guide=_continuation_tail_frame_guide,
+            continuation_state_summary=_continuation_state_summary,
             refmod_mods=refmod_mods  # 【补上】传给中转层
         )
 

@@ -363,7 +363,7 @@ def _inject_continuity_instruction(
             insert_at = shot_index + len("[Shot 1]")
             time_range = re.match(
                 r"\s*\d+(?:\.\d+)?\s*(?:s|秒)\s*[-–]\s*"
-                r"\d+(?:\.\d+)?\s*(?:s|秒)\s*:",
+                r"\d+(?:\.\d+)?\s*(?:s|秒)\s*[:：]",
                 prompt[insert_at:],
                 re.IGNORECASE,
             )
@@ -373,19 +373,24 @@ def _inject_continuity_instruction(
     return prompt, False
 
 
+def _strip_dialogue_sentences(text: str) -> str:
+    return re.sub(r"[^。！？.!?\n]*<d>.*?</d>[^。！？.!?\n]*[。！？.!?]?", "", text, flags=re.DOTALL)
+
+
 def _crop_prompt_to_timeline_window(
     prompt: str,
     window_start: float,
     window_end: float,
     overlap_frames: int,
     continuation: bool,
+    include_completed_shot_state: bool = False,
 ) -> tuple[str, int | None]:
     section_pattern = re.compile(
         r"(?im)^(?:integrated_multimodal_description|detailed_description)\s*[:：][ \t]*$"
     )
     shot_pattern = re.compile(
         r"\[Shot\s+(\d+)\]\s*(\d+(?:\.\d+)?)\s*(?:s|秒)\s*[-–]\s*"
-        r"(\d+(?:\.\d+)?)\s*(?:s|秒)\s*:",
+        r"(\d+(?:\.\d+)?)\s*(?:s|秒)\s*[:：]",
         re.IGNORECASE,
     )
     sections = list(section_pattern.finditer(prompt))
@@ -396,6 +401,7 @@ def _crop_prompt_to_timeline_window(
     selected_count = 0
     found_timed_shots = False
     action_start = window_start + overlap_frames / H3_FPS
+    completed_shot_states: list[str] = []
     for section_index in range(len(sections) - 1, -1, -1):
         section = sections[section_index]
         body_start = section.end()
@@ -414,13 +420,26 @@ def _crop_prompt_to_timeline_window(
         for shot_index, shot in enumerate(shots):
             shot_start = float(shot.group(2))
             shot_end = float(shot.group(3))
+            block_end = shots[shot_index + 1].start() if shot_index + 1 < len(shots) else len(body)
+            if (
+                include_completed_shot_state
+                and continuation
+                and shot_end <= action_start
+            ):
+                completed_state = body[shot.start():block_end]
+                completed_state = (
+                    completed_state[:shot.end() - shot.start()]
+                    + _strip_dialogue_sentences(completed_state[shot.end() - shot.start():])
+                ).strip()
+                if completed_state != body[shot.start():shot.end()].strip():
+                    completed_shot_states.append(completed_state)
+                continue
             if shot_end <= action_start:
                 continue
             clipped_start = max(shot_start, action_start, window_start)
             clipped_end = min(shot_end, window_end)
             if clipped_end <= clipped_start:
                 continue
-            block_end = shots[shot_index + 1].start() if shot_index + 1 < len(shots) else len(body)
             block = body[shot.start():block_end]
             local_start = clipped_start - window_start
             local_end = clipped_end - window_start
@@ -429,22 +448,36 @@ def _crop_prompt_to_timeline_window(
             )
             if continuation and shot_start < action_start:
                 local_action_start = action_start - window_start
+                block = shot_pattern.sub(replacement, block, count=1)
+                # 对白句整句只留在起始窗口，续窗保留“大喊”会让模型自行编台词
+                block = replacement + _strip_dialogue_sentences(block[len(replacement):])
                 block = (
                     f"{replacement} This shot is already underway at "
                     f"{local_action_start:.2f}s. Continue only from the carried visual "
                     "state until the next timed shot. Preserve current poses, wardrobe, "
-                    "props, and scene; do not repeat or reverse any action already shown.\n"
+                    "props, and scene; do not repeat or reverse any action already shown. "
+                    + block[len(replacement):]
                 )
             else:
                 block = shot_pattern.sub(replacement, block, count=1)
+            # 对白移到 Shot 末尾，避免后面的动作描述被模型接着当台词念出
+            dialogues = re.findall(r"<d>.*?</d>", block, flags=re.DOTALL)
+            if dialogues:
+                block = re.sub(r"\s*<d>.*?</d>\s*[，,]?", " ", block, flags=re.DOTALL)
+                block = block.rstrip() + " " + " ".join(dialogues) + "\n"
             kept.append(block)
 
         if kept:
             selected_count = max(selected_count, len(kept))
             cropped_body = (
                 body[:shots[0].start()]
-                + "Dialogue is heard only as the characters' voices; keep the image focused "
-                "on the described scene and actions.\n"
+                + (
+                    "Dialogue is heard only as the characters' voices; keep the image focused "
+                    "on the described scene and actions.\n"
+                    if any("<d>" in block for block in kept) else
+                    "No character speaks in this window: no dialogue, no voice-over, no "
+                    "narration. Ambient sound and impact sounds only.\n"
+                )
                 + "".join(kept)
             )
         else:
@@ -465,6 +498,20 @@ def _crop_prompt_to_timeline_window(
             ),
         ),
     ]
+    if completed_shot_states:
+        state_summary = "\n".join(
+            re.sub(r"\s+", " ", state).strip()
+            for state in completed_shot_states
+        )
+        section_replacements.append((
+            "completed_timeline_state",
+            (
+                "The following timeline events are already complete. Use them only as "
+                "the current visual state for continuity: do not replay, reverse, or "
+                "describe them as new actions in this window.\n"
+                f"{state_summary}\n\n"
+            ),
+        ))
     section_replacements.append((
         "retention_analysis",
         (
@@ -483,20 +530,37 @@ def _crop_prompt_to_timeline_window(
             rf"(?ims)^{section_name}\s*:\s*\n.*?"
             r"(?=^\s*(?:subject_definitions|summary|retention_analysis|"
             r"detailed_description|integrated_multimodal_description|"
-            r"overall_soundscape|non_diegetic_music)\s*[:：]|$)"
+            r"completed_timeline_state|overall_soundscape|non_diegetic_music)\s*[:：]|$)"
         )
         matches = list(section_pattern.finditer(updated))
         for match in reversed(matches):
             heading = f"{section_name}:\n"
             updated = updated[:match.start()] + heading + replacement + updated[match.end():]
 
+    if completed_shot_states and "completed_timeline_state:" not in updated:
+        insertion = (
+            "completed_timeline_state:\n"
+            "The following timeline events are already complete. Use them only as "
+            "the current visual state for continuity: do not replay, reverse, or "
+            "describe them as new actions in this window.\n"
+            + "\n".join(re.sub(r"\s+", " ", state).strip() for state in completed_shot_states)
+            + "\n\n"
+        )
+        updated = insertion + updated
+
     return (updated, selected_count) if found_timed_shots else (prompt, None)
+
+
+def _strip_picture_reference_markup(prompt: str) -> str:
+    prompt = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", prompt)
+    prompt = re.sub(r"<\s*(?:Picture|图片)\s+\d+\s*>", "", prompt, flags=re.IGNORECASE)
+    return re.sub(r"[ \t]{2,}", " ", prompt)
 
 
 def _selflift_shot_boundaries(prompt: str) -> tuple[int, ...]:
     shot_pattern = re.compile(
         r"\[Shot\s+\d+\]\s*(\d+(?:\.\d+)?)\s*(?:s|秒)\s*[-–]\s*"
-        r"\d+(?:\.\d+)?\s*(?:s|秒)\s*:",
+        r"\d+(?:\.\d+)?\s*(?:s|秒)\s*[:：]",
         re.IGNORECASE,
     )
     boundaries = {
@@ -516,6 +580,13 @@ def _selflift_window_plan(
     minimum_window_frames = 56
     boundaries = tuple(value for value in shot_boundaries if 0 < value < total_frames)
     plans: dict[int, tuple[int, int, int, tuple[int, ...]]] = {}
+    preserve_shot_cuts = bool(boundaries and overlap_frames < 22)
+
+    def score(plan):
+        window_count, cut_distance_total, squared_window_total, _ = plan
+        if preserve_shot_cuts:
+            return cut_distance_total, window_count, squared_window_total
+        return window_count, cut_distance_total, squared_window_total
 
     def cut_distance(cut: int) -> int:
         return min((abs(cut - boundary) for boundary in boundaries), default=0)
@@ -537,7 +608,7 @@ def _selflift_window_plan(
                 previous_plan[2] + window_length * window_length,
                 previous_plan[3] + (cut,),
             )
-            if best is None or candidate[:3] < best[:3]:
+            if best is None or score(candidate) < score(best):
                 best = candidate
         if best is not None:
             plans[cut] = best
@@ -553,7 +624,7 @@ def _selflift_window_plan(
             previous_plan[2] + final_length * final_length,
             previous_plan[3],
         )
-        if best_final is None or candidate[:3] < best_final[:3]:
+        if best_final is None or score(candidate) < score(best_final):
             best_final = candidate
 
     if best_final is None:
@@ -755,7 +826,31 @@ def _selflift_window_limit(total_memory_bytes: int) -> int:
     return 209
 
 
-def _split_long_single_selflift_plan(finite: dict, max_window_frames: int) -> dict:
+def _selflift_window_overlap(
+    total_memory_bytes: int, requested_overlap_frames: int | None = None,
+) -> int:
+    if total_memory_bytes >= 14 * 1024 ** 3:
+        return 22
+    if requested_overlap_frames is None:
+        requested = os.environ.get("UNIVERSAL_DIRECTOR_LOW_VRAM_WINDOW_OVERLAP_FRAMES")
+        if requested is None or not requested.strip():
+            return 22
+        try:
+            overlap = int(requested)
+        except ValueError as exc:
+            raise ValueError(
+                "UNIVERSAL_DIRECTOR_LOW_VRAM_WINDOW_OVERLAP_FRAMES must be 5 or 22"
+            ) from exc
+    else:
+        overlap = int(requested_overlap_frames)
+    if overlap not in {5, 22}:
+        raise ValueError("SelfLift story-continuity overlap must be 5 or 22 frames")
+    return overlap
+
+
+def _split_long_single_selflift_plan(
+    finite: dict, max_window_frames: int, overlap_frames: int = 22,
+) -> dict:
     if finite.get("mode") != "single_segment" or not finite.get("second_pass"):
         return finite
     lengths = finite.get("segment_lengths") or []
@@ -769,7 +864,9 @@ def _split_long_single_selflift_plan(finite: dict, max_window_frames: int) -> di
     base_plan = _finite_plan_for_segment(finite, 1)
     selection = base_plan["timeline"].get("selection") or {}
     selection_start = max(0.0, float(selection.get("start") or 0.0))
-    overlap_frames = 22
+    overlap_frames = int(overlap_frames)
+    if overlap_frames not in {5, 22}:
+        raise ValueError("SelfLift internal overlap must be 5 or 22 H3-aligned frames")
     shot_aligned_windows = _selflift_shot_aligned_windows(
         finite, max_window_frames, overlap_frames
     )
@@ -818,6 +915,8 @@ def _split_long_single_selflift_plan(finite: dict, max_window_frames: int) -> di
         segment_overlaps=overlaps,
         segment_lengths=[end - start for start, end in windows],
         target_output_frames=total_frames,
+        selflift_cut_frames=[end for _, end in windows[:-1]],
+        selflift_shot_aligned=shot_aligned_windows is not None,
         selflift_aligned_cut_frames=(
             [end for _, end in windows[:-1]]
             if shot_aligned_windows is not None else []
@@ -1817,6 +1916,16 @@ class UniversalSegmentSampler(io.ComfyNode):
                 io.Int.Input("seed", default=0, min=0, max=0xFFFFFFFFFFFFFFFF, control_after_generate=True),
                 io.Boolean.Input("continue_audio_latent", display_name="Continue Audio Latent", default=True),
                 io.Combo.Input("ref_image_size", options=["match", "max"], default="match"),
+                io.Boolean.Input(
+                    "continuation_tail_frame_guide",
+                    default=False,
+                    tooltip="Experimental: guide continuation windows with the previous generated window's final frame.",
+                ),
+                io.Boolean.Input(
+                    "continuation_state_summary",
+                    default=False,
+                    tooltip="Experimental: include completed timed shots as continuity-only state context for later windows.",
+                ),
             ],
             outputs=[
                 io.Latent.Output(display_name="Last Sampled Latent"),
@@ -1842,6 +1951,9 @@ class UniversalSegmentSampler(io.ComfyNode):
         refine_chunk_frames=24, refine_chunk_overlap=8,
         vram_tier="normal",
         tile_overlap_patches=0,
+        low_vram_window_overlap_frames=5,
+        continuation_tail_frame_guide=False,
+        continuation_state_summary=False,
         refine_width=None, refine_height=None,
     ):
         from . import inject_internal_nodes
@@ -1891,6 +2003,7 @@ class UniversalSegmentSampler(io.ComfyNode):
         sampler = KSamplerSelect().get_sampler(sampler_name)[0]
         sigmas = BasicScheduler().get_sigmas(model, scheduler, steps, denoise)[0]
         finite = _require_finite_plan(finite_plan)
+        low_vram_multi_window = False
         if (
             exec_mode == "full"
             and second_pass_mode == "selflift"
@@ -1901,23 +2014,46 @@ class UniversalSegmentSampler(io.ComfyNode):
 
             total_memory = int(model_management.get_total_memory(model.load_device))
             window_limit = _selflift_window_limit(total_memory)
+            window_overlap = _selflift_window_overlap(
+                total_memory, low_vram_window_overlap_frames
+            )
             original_count = int(finite["segment_count"])
-            finite = _split_long_single_selflift_plan(finite, window_limit)
-            aligned_cuts = finite.get("selflift_aligned_cut_frames") or []
+            finite = _split_long_single_selflift_plan(
+                finite, window_limit, window_overlap
+            )
+            low_vram_multi_window = (
+                total_memory < 14 * 1024 ** 3 and int(finite["segment_count"]) >= 3
+            )
             if finite["segment_count"] != original_count:
-                cut_status = (
-                    "，分镜对齐切点 " + "、".join(map(str, aligned_cuts)) + " 帧"
-                    if aligned_cuts else ""
-                )
+                cut_frames = finite.get("selflift_cut_frames") or []
+                if cut_frames and finite.get("selflift_shot_aligned"):
+                    cut_status = (
+                        "，分镜对齐切点 " + "、".join(map(str, cut_frames)) + " 帧"
+                    )
+                elif cut_frames:
+                    cut_status = (
+                        "，自动窗口切点 " + "、".join(map(str, cut_frames))
+                        + " 帧（未识别到定时 Shot）"
+                    )
+                else:
+                    cut_status = "，未产生中间切点"
                 logging.info(
                     "【UniversalDirectorConsole】SelfLift 长单段自动分窗：%d 帧 → %d 个窗口，"
-                    "窗口上限 %d 帧，重叠 %d 帧%s，GPU 总显存 %.1f GiB",
+                    "窗口上限 %d 帧，重叠 %d 帧（%.3f 秒）%s，GPU 总显存 %.1f GiB",
                     int(finite["target_output_frames"]),
                     int(finite["segment_count"]),
                     window_limit,
-                    22,
+                    window_overlap,
+                    window_overlap / H3_FPS,
                     cut_status,
                     total_memory / (1024 ** 3),
+                )
+            if low_vram_multi_window:
+                logging.info(
+                    "【UniversalDirectorConsole】低显存多窗参考策略："
+                    "首窗保留图片 latent 参考，后续 %d 个窗口仅保留 Qwen 图片视觉语义，"
+                    "避免重复注入参考图 latent。",
+                    int(finite["segment_count"]) - 1,
                 )
         graph = GraphBuilder()
         previous_latent = None
@@ -1967,6 +2103,11 @@ class UniversalSegmentSampler(io.ComfyNode):
             overlap = int(finite.get("segment_overlaps", [overlap] * finite["segment_count"])[index])
             segment_plan = _finite_plan_for_segment(finite, number)
             internal_window = finite.get("mode") == "selflift_internal_windows"
+            include_image_latent_refs = not (
+                low_vram_multi_window and internal_window and index > 0
+            )
+            include_image_qwen_refs = include_image_latent_refs
+            continuation_frame = None
             window_seed = int(seed)
             if internal_window:
                 window_seed = (window_seed + index) % (1 << 64)
@@ -1982,7 +2123,36 @@ class UniversalSegmentSampler(io.ComfyNode):
                     timeline_end,
                     overlap,
                     continuation=index > 0,
+                    include_completed_shot_state=bool(continuation_state_summary),
                 )
+                if bool(continuation_state_summary) and index > 0:
+                    logging.info(
+                        "【UniversalDirectorConsole】SelfLift 窗口 %d/%d："
+                        "已注入已完成 Shot 的状态清单（仅用于连续性，不重演）。",
+                        number,
+                        finite["segment_count"],
+                    )
+                if bool(continuation_tail_frame_guide) and index > 0:
+                    if previous_images is None:
+                        raise ValueError(
+                            "Continuation tail-frame guide requires decoded frames from the previous window"
+                        )
+                    continuation_frame = previous_images
+                    logging.info(
+                        "【UniversalDirectorConsole】SelfLift 窗口 %d/%d："
+                        "使用前一窗口尾帧作为 H3 起始状态参考。",
+                        number,
+                        finite["segment_count"],
+                    )
+                if low_vram_multi_window and index > 0:
+                    prompt = _strip_picture_reference_markup(prompt)
+                    include_image_qwen_refs = False
+                    logging.info(
+                        "【UniversalDirectorConsole】SelfLift 窗口 %d/%d："
+                        "续窗已移除图片标签与嵌入图链接，保留文字人物定义及前窗 latent 连续。",
+                        number,
+                        finite["segment_count"],
+                    )
                 if selected_shots is not None:
                     logging.info(
                         "【UniversalDirectorConsole】SelfLift 窗口 %d/%d："
@@ -2031,6 +2201,9 @@ class UniversalSegmentSampler(io.ComfyNode):
                 clip=clip, vae=vae, audio_vae=audio_vae,
                 plan=segment_plan,
                 prompt=prompt, ref_image_size=ref_image_size,
+                include_image_latent_refs=include_image_latent_refs,
+                include_image_qwen_refs=include_image_qwen_refs,
+                continuation_frame=continuation_frame,
                 refmod_mods=refmod_mods
             )
 
