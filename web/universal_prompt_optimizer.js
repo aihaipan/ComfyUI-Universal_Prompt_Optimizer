@@ -2,8 +2,8 @@
 // Licensed under GPL-3.0-or-later. See LICENSE for full text.
 
 
-import { app } from "/scripts/app.js";
-import { api } from "/scripts/api.js";
+import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 
 const NODE = "UniversalPromptOptimizerGH";
 const OPTIMIZER_ROUTE = "/universal-prompt-optimizer";

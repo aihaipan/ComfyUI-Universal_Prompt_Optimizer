@@ -2,7 +2,8 @@
 // 【L2-d】MiniMax H3 Finite Segment 桥接器前端扩展
 // 提供"段间引导"面板：显示 summary 摘要 + 甘特图 + 拖拽重叠调整。
 
-import { app } from "/scripts/app.js";
+import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 
 const NODE = "UniversalFiniteBridge";
 
@@ -655,7 +656,7 @@ function createPanel(node) {
         let models = [];
         let h3Compat = [];
         try {
-            const r = await fetch("/minimax-bridge/upscalers", { cache: "no-store" });
+            const r = await api.fetchApi("/minimax-bridge/upscalers", { cache: "no-store" });
             const data = await r.json();
             models = Array.isArray(data.models) ? data.models : [];
             h3Compat = Array.isArray(data.h3_compatible) ? data.h3_compatible : [];
