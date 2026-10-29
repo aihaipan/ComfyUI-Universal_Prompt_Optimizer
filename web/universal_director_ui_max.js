@@ -2,8 +2,8 @@
 // Licensed under GPL-3.0-or-later. See LICENSE for full text.
 
 
-import { app } from "/scripts/app.js";
-import { api } from "/scripts/api.js";
+import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 
 const NODE = "UniversalDirectorUI";
 const OPTIMIZER_ROUTE = "/universal-prompt-optimizer";
@@ -849,7 +849,7 @@ function createPanel(node) {
     updateSplitRunControls();
 
     // 获取二采模型列表
-    fetch("/minimax-bridge/upscalers").then(r => r.json()).then(data => {
+    api.fetchApi("/minimax-bridge/upscalers").then(r => r.json()).then(data => {
         if (data && data.h3_compatible) {
             spModelSelect.innerHTML = "";
             if (data.h3_compatible.length === 0) {
